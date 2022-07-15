@@ -114,25 +114,6 @@ Variable :: struct{
     name: Token,
 }
 
-/*
-visit_expr :: proc(expr: ^Expr) {
-    switch v in expr {
-    case Assign  : visit_expr_assign(v)
-    case Binary  : visit_expr_binary(v)
-    case Call    : visit_expr_call(v)
-    case Get     : visit_expr_get(v)
-    case Grouping: visit_expr_grouping(v)
-    case Literal : visit_expr_literal(v)
-    case Logical : visit_expr_logical(v)
-    case Set     : visit_expr_set(v)
-    case Super   : visit_expr_super(v)
-    case This    : visit_expr_this(v)
-    case Unary   : visit_expr_unary(v)
-    case Variable: visit_expr_variable(v)
-    }
-}
-*/
-
 Stmt :: union{
     Block,
     Class,
@@ -190,18 +171,3 @@ While :: struct{
     body     : ^Stmt,
 }
 
-/*
-visit_stmt :: proc(stmt: ^Stmt) {
-    switch v in stmt {
-    case Block     : visit_stmt_block(v)
-    case Class     : visit_stmt_class(v)
-    case Expression: visit_stmt_expression(v)
-    case Function  : visit_stmt_function(v)
-    case If        : visit_stmt_if(v)
-    case Print     : visit_stmt_print(v)
-    case Return    : visit_stmt_return(v)
-    case Var       : visit_stmt_var(v)
-    case While     : visit_stmt_while(v)
-    }
-}
-*/

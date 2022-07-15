@@ -1,2 +1,4 @@
 #!/bin/bash 
-odin build . -out:olox
+set -xe
+
+odin build . -out:olox 
