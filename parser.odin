@@ -19,11 +19,7 @@ parser_parse :: proc(parser: ^Parser) -> []^Stmt {
     statements: [dynamic]^Stmt
 
     for !parser_is_at_end(parser) {
-        stmt, ok := parser_statement(parser)
-        if !ok {
-            // TODO(daniel): error handling
-            return nil
-        }
+        stmt := parser_declaration(parser)
 
         append(&statements, stmt)
     }
@@ -35,6 +31,51 @@ parser_parse :: proc(parser: ^Parser) -> []^Stmt {
     /* } */
 
     /* return expr */
+}
+
+parser_declaration :: proc(parser: ^Parser) -> ^Stmt {
+    using TokenType
+
+    stmt: ^Stmt
+    ok: bool
+
+    if parser_match(parser, []TokenType{Var}) {
+        stmt, ok = parser_var_declaration(parser)
+    } else {
+        stmt, ok = parser_statement(parser)
+    }
+
+    if !ok {
+        parser_synchronize(parser)
+
+        return nil
+    }
+
+    return stmt
+}
+
+parser_var_declaration :: proc(parser: ^Parser) -> (^Stmt, bool) {
+    using TokenType
+
+    name, ok := parser_consume(parser, Identifier, "Expect variable name")
+    if !ok {
+        return nil, false
+    }
+
+    initializer: ^Expr
+    if parser_match(parser, []TokenType{Equal}) {
+        initializer, ok = parser_expression(parser)
+        if !ok {
+            return nil, false
+        }
+    }
+
+    _, ok = parser_consume(parser, Semicolon, "Expect ';' after variable declaration.")
+    if !ok {
+        return nil, false
+    }
+
+    return new_var(name, initializer), true
 }
 
 parser_statement :: proc(parser: ^Parser) -> (^Stmt, bool) {
@@ -55,7 +96,10 @@ parser_print_statement :: proc(parser: ^Parser) -> (^Stmt, bool) {
         return nil, false
     }
 
-    parser_consume(parser, Semicolon, "Expect ';' after value.")
+    _, ok = parser_consume(parser, Semicolon, "Expect ';' after value.")
+    if !ok {
+        return nil, false
+    }
 
     return new_print(value), true 
 }
@@ -68,13 +112,42 @@ parser_expression_statement :: proc(parser: ^Parser) -> (^Stmt, bool) {
         return nil, false
     }
 
-    parser_consume(parser, Semicolon, "Expect ';' after value.")
+    _, ok = parser_consume(parser, Semicolon, "Expect ';' after value.")
+    if !ok {
+        return nil, false
+    }
 
     return new_expression(expr), true
 }
 
 parser_expression :: proc(parser: ^Parser) -> (^Expr, bool) {
-    return parser_equality(parser)
+    return parser_assignment(parser)
+}
+
+parser_assignment :: proc(parser: ^Parser) -> (^Expr, bool) {
+    using TokenType
+
+    expr, ok := parser_equality(parser)
+    if !ok {
+        return nil, false
+    }
+
+    if parser_match(parser, []TokenType{Equal}) {
+        equals := parser_previous(parser)
+        value, ok := parser_assignment(parser)
+        if !ok {
+            return nil, false
+        }
+
+        #partial switch l in expr {
+        case Variable:
+            return new_assign(l.name, value), true
+        }
+
+        error(equals, "Invalid assignment target.")
+    }
+
+    return expr, true
 }
 
 parser_equality :: proc(parser: ^Parser) -> (^Expr, bool) {
@@ -206,6 +279,8 @@ parser_primary :: proc(parser: ^Parser) -> (^Expr, bool) {
         expr = new_literal(parser_advance(parser))
     case parser_check(parser, String):
         expr = new_literal(parser_advance(parser))
+    case parser_check(parser, Identifier):
+        expr = new_variable(parser_advance(parser))
     case parser_check(parser, LeftParen):
         parser_consume(parser, LeftParen)
 

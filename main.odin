@@ -60,9 +60,8 @@ run :: proc(data: string) {
         return
     }
 
-    fmt.println("tokens    :", tokens)
-    fmt.println("statements:", stmts)
-    interpret(stmts)
+    interpreter := new_interpreter()
+    interpret(interpreter, stmts)
 }
 
 hadError := false

@@ -3,53 +3,78 @@ package main
 import "core:strings"
 import "core:fmt"
 
-interpret :: proc(stmts: []^Stmt) {
+Interpreter :: struct {
+    environment: ^Environment,
+}
+
+new_interpreter :: proc() -> ^Interpreter {
+    interp := new(Interpreter)
+    interp.environment = new_environment()
+
+    return interp
+}
+
+interpret :: proc(interp: ^Interpreter, stmts: []^Stmt) {
     for stmt in stmts {
-        interpret_stmt(stmt)
+        interpret_stmt(interp, stmt)
     }
 }
 
-interpret_stmt :: proc(stmt: ^Stmt) -> Void {
+interpret_stmt :: proc(interp: ^Interpreter, stmt: ^Stmt) -> Void {
     switch v in stmt {
     case Block:
     case Class:
     case Expression:
-        return interpret_expression_stmt(v)
+        return interpret_expression_stmt(interp, v)
     case Function:
     case If:
     case Print:
-        return interpret_print_stmt(v)
+        return interpret_print_stmt(interp, v)
     case Return:
     case Var:
+        return interpret_var_stmt(interp, v)
     case While:
     }
 
     return Void{}
 }
 
-interpret_print_stmt :: proc(v: Print) -> Void {
-    value := interpret_expr(v.expression)
+interpret_print_stmt :: proc(interp: ^Interpreter, v: Print) -> Void {
+    value := interpret_expr(interp, v.expression)
 
     fmt.println(interpret_stringify(value))
 
     return Void{}
 }
 
-interpret_expression_stmt :: proc(v: Expression) -> Void {
-    interpret_expr(v.expression)
+interpret_expression_stmt :: proc(interp: ^Interpreter, v: Expression) -> Void {
+    interpret_expr(interp, v.expression)
 
     return Void{}
 }
 
-interpret_expr :: proc(expr: ^Expr) -> Value {
+interpret_var_stmt :: proc(interp: ^Interpreter, v: Var) -> Void {
+    value : Value = Nil{}
+
+    if v.initializer != nil {
+        value = interpret_expr(interp, v.initializer)
+    }
+
+    environment_define(interp.environment, v.name, value)
+
+    return Void{}
+}
+
+interpret_expr :: proc(interp: ^Interpreter, expr: ^Expr) -> Value {
     switch v in expr {
     case Assign:
+        return interpret_assign_expr(interp, v)
     case Binary:
-        return interpret_binary_expr(v)
+        return interpret_binary_expr(interp, v)
     case Call:
     case Get:
     case Grouping:
-        return interpret_expr(v.expression)
+        return interpret_expr(interp, v.expression)
     case Literal:
         return v.value.value
     case Logical:
@@ -57,15 +82,24 @@ interpret_expr :: proc(expr: ^Expr) -> Value {
     case Super:
     case This:
     case Unary:
-        return interpret_unary_expr(v)
+        return interpret_unary_expr(interp, v)
     case Variable:
+        return interpret_variable_expr(interp, v)
     }
 
     return Nil{}
 }
 
-interpret_unary_expr :: proc(v: Unary) -> Value {
-    right := interpret_expr(v.right)
+interpret_assign_expr :: proc(interp: ^Interpreter, v: Assign) -> Value {
+    value := interpret_expr(interp, v.value)
+
+    environment_assign(interp.environment, v.name, value)
+
+    return value
+}
+
+interpret_unary_expr :: proc(interp: ^Interpreter, v: Unary) -> Value {
+    right := interpret_expr(interp, v.right)
 
     #partial switch v.operator.type {
     case TokenType.Minus:
@@ -83,9 +117,13 @@ interpret_unary_expr :: proc(v: Unary) -> Value {
     return Nil{}
 }
 
-interpret_binary_expr :: proc(v: Binary) -> Value {
-    left := interpret_expr(v.left)
-    right := interpret_expr(v.right)
+interpret_variable_expr :: proc(interp: ^Interpreter, v: Variable) -> Value {
+    return environment_get(interp.environment, v.name)
+}
+
+interpret_binary_expr :: proc(interp: ^Interpreter, v: Binary) -> Value {
+    left := interpret_expr(interp, v.left)
+    right := interpret_expr(interp, v.right)
 
     #partial switch v.operator.type {
     case TokenType.Greater:
