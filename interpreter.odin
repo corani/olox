@@ -23,6 +23,7 @@ interpret :: proc(interp: ^Interpreter, stmts: []^Stmt) {
 interpret_stmt :: proc(interp: ^Interpreter, stmt: ^Stmt) -> Void {
     switch v in stmt {
     case Block:
+        return interpret_block_stmt(interp, v)
     case Class:
     case Expression:
         return interpret_expression_stmt(interp, v)
@@ -49,6 +50,18 @@ interpret_print_stmt :: proc(interp: ^Interpreter, v: Print) -> Void {
 
 interpret_expression_stmt :: proc(interp: ^Interpreter, v: Expression) -> Void {
     interpret_expr(interp, v.expression)
+
+    return Void{}
+}
+
+interpret_block_stmt :: proc(interp: ^Interpreter, v: Block) -> Void {
+    previous := interp.environment
+
+    interp.environment = new_environment(previous)
+    {
+        interpret(interp, v.statements[:])
+    }
+    interp.environment = previous
 
     return Void{}
 }

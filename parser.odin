@@ -84,6 +84,9 @@ parser_statement :: proc(parser: ^Parser) -> (^Stmt, bool) {
     if parser_match(parser, []TokenType{Print}) {
         return parser_print_statement(parser)
     }
+    if parser_match(parser, []TokenType{LeftBrace}) {
+        return parser_block_statement(parser)
+    }
 
     return parser_expression_statement(parser)
 }
@@ -118,6 +121,25 @@ parser_expression_statement :: proc(parser: ^Parser) -> (^Stmt, bool) {
     }
 
     return new_expression(expr), true
+}
+
+parser_block_statement :: proc(parser: ^Parser) -> (^Stmt, bool) {
+    using TokenType
+
+    statements: [dynamic]^Stmt
+
+    for !parser_check(parser, RightBrace) && !parser_is_at_end(parser) {
+        stmt := parser_declaration(parser)
+        if stmt == nil {
+            return nil, false
+        }
+
+        append(&statements, stmt)
+    }
+
+    parser_consume(parser, RightBrace, "Expect '}' after block.")
+
+    return new_block(statements[:]), true
 }
 
 parser_expression :: proc(parser: ^Parser) -> (^Expr, bool) {
