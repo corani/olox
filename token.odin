@@ -7,6 +7,8 @@ Value :: union{
     Nil,
 }
 
+Void :: struct{}
+
 Number :: f64
 String :: string
 Boolean :: bool

@@ -15,13 +15,62 @@ new_parser :: proc(tokens: []Token) -> ^Parser {
     return parser
 }
 
-parser_parse :: proc(parser: ^Parser) -> ^Expr {
-    expr, ok := parser_expression(parser)
-    if !ok {
-        return nil
+parser_parse :: proc(parser: ^Parser) -> []^Stmt {
+    statements: [dynamic]^Stmt
+
+    for !parser_is_at_end(parser) {
+        stmt, ok := parser_statement(parser)
+        if !ok {
+            // TODO(daniel): error handling
+            return nil
+        }
+
+        append(&statements, stmt)
     }
 
-    return expr
+    return statements[:]
+    /* expr, ok := parser_expression(parser) */
+    /* if !ok { */
+    /*     return nil */
+    /* } */
+
+    /* return expr */
+}
+
+parser_statement :: proc(parser: ^Parser) -> (^Stmt, bool) {
+    using TokenType
+
+    if parser_match(parser, []TokenType{Print}) {
+        return parser_print_statement(parser)
+    }
+
+    return parser_expression_statement(parser)
+}
+
+parser_print_statement :: proc(parser: ^Parser) -> (^Stmt, bool) {
+    using TokenType
+
+    value, ok := parser_expression(parser)
+    if !ok {
+        return nil, false
+    }
+
+    parser_consume(parser, Semicolon, "Expect ';' after value.")
+
+    return new_print(value), true 
+}
+
+parser_expression_statement :: proc(parser: ^Parser) -> (^Stmt, bool) {
+    using TokenType
+
+    expr, ok := parser_expression(parser)
+    if !ok {
+        return nil, false
+    }
+
+    parser_consume(parser, Semicolon, "Expect ';' after value.")
+
+    return new_expression(expr), true
 }
 
 parser_expression :: proc(parser: ^Parser) -> (^Expr, bool) {

@@ -140,6 +140,15 @@ Expression :: struct{
     expression: ^Expr,
 }
 
+new_expression :: proc(expression: ^Expr) -> ^Stmt {
+    stmt := new(Stmt)
+    stmt^ = Expression{
+        expression=expression,
+    }
+
+    return stmt
+}
+
 Function :: struct{
     name  : Token,
     params: [dynamic]Token,
@@ -155,6 +164,16 @@ If :: struct{
 Print :: struct{
     expression: ^Expr,
 }
+
+new_print :: proc(expression: ^Expr) -> ^Stmt {
+    stmt := new(Stmt)
+    stmt^ = Print{
+        expression=expression,
+    }
+
+    return stmt
+}
+
 
 Return :: struct{
     keyword: Token,

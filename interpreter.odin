@@ -3,9 +3,42 @@ package main
 import "core:strings"
 import "core:fmt"
 
-interpret :: proc(expr: ^Expr) -> string{
-    value := interpret_expr(expr)
-    return interpret_stringify(value)
+interpret :: proc(stmts: []^Stmt) {
+    for stmt in stmts {
+        interpret_stmt(stmt)
+    }
+}
+
+interpret_stmt :: proc(stmt: ^Stmt) -> Void {
+    switch v in stmt {
+    case Block:
+    case Class:
+    case Expression:
+        return interpret_expression_stmt(v)
+    case Function:
+    case If:
+    case Print:
+        return interpret_print_stmt(v)
+    case Return:
+    case Var:
+    case While:
+    }
+
+    return Void{}
+}
+
+interpret_print_stmt :: proc(v: Print) -> Void {
+    value := interpret_expr(v.expression)
+
+    fmt.println(interpret_stringify(value))
+
+    return Void{}
+}
+
+interpret_expression_stmt :: proc(v: Expression) -> Void {
+    interpret_expr(v.expression)
+
+    return Void{}
 }
 
 interpret_expr :: proc(expr: ^Expr) -> Value {

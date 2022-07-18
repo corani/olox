@@ -54,15 +54,15 @@ run :: proc(data: string) {
 
     tokens := scanner_tokens(scanner)
     parser := new_parser(tokens)
-    expression := parser_parse(parser)
+    stmts := parser_parse(parser)
 
     if hadError {
         return
     }
 
     fmt.println("tokens    :", tokens)
-    fmt.println("expression:", print_expr(expression))
-    fmt.println("value     :", interpret(expression))
+    fmt.println("statements:", stmts)
+    interpret(stmts)
 }
 
 hadError := false
