@@ -86,6 +86,8 @@ parser_statement :: proc(parser: ^Parser) -> (^Stmt, bool) {
         return parser_if_statement(parser)
     case parser_match(parser, []TokenType{Print}):
         return parser_print_statement(parser)
+    case parser_match(parser, []TokenType{While}):
+        return parser_while_statement(parser)
     case parser_match(parser, []TokenType{LeftBrace}):
         return parser_block_statement(parser)
     }
@@ -125,6 +127,31 @@ parser_if_statement :: proc(parser: ^Parser) -> (^Stmt, bool) {
     }
 
     return new_if(condition, thenBranch, elseBranch), true
+}
+
+parser_while_statement :: proc(parser: ^Parser) -> (^Stmt, bool) {
+    using TokenType
+
+    if _, ok := parser_consume(parser, LeftParen, "Expect '(' after 'while'."); !ok {
+        return nil, false
+    }
+
+    condition, ok := parser_expression(parser)
+    if !ok {
+        return nil, false
+    }
+
+    if _, ok := parser_consume(parser, RightParen, "Expect ')' after while condition."); !ok {
+        return nil, false
+    }
+
+    body: ^Stmt
+    body, ok = parser_statement(parser)
+    if !ok {
+        return nil, false
+    }
+
+    return new_while(condition, body), true
 }
 
 parser_print_statement :: proc(parser: ^Parser) -> (^Stmt, bool) {

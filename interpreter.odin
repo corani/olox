@@ -36,6 +36,7 @@ interpret_stmt :: proc(interp: ^Interpreter, stmt: ^Stmt) -> Void {
     case Var:
         return interpret_var_stmt(interp, v)
     case While:
+        return interpret_while_stmt(interp, v)
     }
 
     return Void{}
@@ -66,13 +67,19 @@ interpret_if_stmt :: proc(interp: ^Interpreter, v: If) -> Void {
     return Void{}
 }
 
+interpret_while_stmt :: proc(interp: ^Interpreter, while: While) -> Void {
+    for interpret_is_truthy(interpret_expr(interp, while.condition)) {
+        interpret_stmt(interp, while.body)
+    }
+
+    return Void{}
+}
+
 interpret_block_stmt :: proc(interp: ^Interpreter, v: Block) -> Void {
     previous := interp.environment
 
     interp.environment = new_environment(previous)
-    {
-        interpret(interp, v.statements[:])
-    }
+    interpret(interp, v.statements[:])
     interp.environment = previous
 
     return Void{}
