@@ -81,14 +81,50 @@ parser_var_declaration :: proc(parser: ^Parser) -> (^Stmt, bool) {
 parser_statement :: proc(parser: ^Parser) -> (^Stmt, bool) {
     using TokenType
 
-    if parser_match(parser, []TokenType{Print}) {
+    switch {
+    case parser_match(parser, []TokenType{If}):
+        return parser_if_statement(parser)
+    case parser_match(parser, []TokenType{Print}):
         return parser_print_statement(parser)
-    }
-    if parser_match(parser, []TokenType{LeftBrace}) {
+    case parser_match(parser, []TokenType{LeftBrace}):
         return parser_block_statement(parser)
     }
 
     return parser_expression_statement(parser)
+}
+
+parser_if_statement :: proc(parser: ^Parser) -> (^Stmt, bool) {
+    using TokenType
+
+    if _, ok := parser_consume(parser, LeftParen, "Expect '(' after 'if'."); !ok {
+        return nil, false
+    }
+
+    condition, ok := parser_expression(parser)
+    if !ok {
+        return nil, false
+    }
+
+    if _, ok := parser_consume(parser, RightParen, "Expect ')' after if condition."); !ok {
+        return nil, false
+    }
+
+    thenBranch: ^Stmt
+    elseBranch: ^Stmt
+
+    thenBranch, ok = parser_statement(parser)
+    if !ok {
+        return nil, false
+    }
+
+    if parser_match(parser, []TokenType{Else}) {
+        elseBranch, ok = parser_statement(parser)
+        if !ok {
+            return nil, false
+        }
+    }
+
+    return new_if(condition, thenBranch, elseBranch), true
 }
 
 parser_print_statement :: proc(parser: ^Parser) -> (^Stmt, bool) {
@@ -149,7 +185,7 @@ parser_expression :: proc(parser: ^Parser) -> (^Expr, bool) {
 parser_assignment :: proc(parser: ^Parser) -> (^Expr, bool) {
     using TokenType
 
-    expr, ok := parser_equality(parser)
+    expr, ok := parser_or(parser)
     if !ok {
         return nil, false
     }
@@ -167,6 +203,50 @@ parser_assignment :: proc(parser: ^Parser) -> (^Expr, bool) {
         }
 
         error(equals, "Invalid assignment target.")
+    }
+
+    return expr, true
+}
+
+parser_or :: proc(parser: ^Parser) -> (^Expr, bool) {
+    using TokenType
+
+    expr, ok := parser_equality(parser)
+    if !ok {
+        return nil, false
+    }
+
+    for parser_match(parser, []TokenType{Or}) {
+        operator := parser_previous(parser)
+
+        right, ok := parser_equality(parser)
+        if !ok {
+            return nil, false
+        }
+
+        expr = new_logical(expr, operator, right)
+    }
+
+    return expr, true
+}
+
+parser_and :: proc(parser: ^Parser) -> (^Expr, bool) {
+    using TokenType
+
+    expr, ok := parser_equality(parser)
+    if !ok {
+        return nil, false
+    }
+
+    for parser_match(parser, []TokenType{And}) {
+        operator := parser_previous(parser)
+
+        right, ok := parser_equality(parser)
+        if !ok {
+            return nil, false
+        }
+
+        expr = new_logical(expr, operator, right)
     }
 
     return expr, true

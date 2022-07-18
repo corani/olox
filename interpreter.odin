@@ -29,6 +29,7 @@ interpret_stmt :: proc(interp: ^Interpreter, stmt: ^Stmt) -> Void {
         return interpret_expression_stmt(interp, v)
     case Function:
     case If:
+        return interpret_if_stmt(interp, v)
     case Print:
         return interpret_print_stmt(interp, v)
     case Return:
@@ -50,6 +51,17 @@ interpret_print_stmt :: proc(interp: ^Interpreter, v: Print) -> Void {
 
 interpret_expression_stmt :: proc(interp: ^Interpreter, v: Expression) -> Void {
     interpret_expr(interp, v.expression)
+
+    return Void{}
+}
+
+interpret_if_stmt :: proc(interp: ^Interpreter, v: If) -> Void {
+    condition := interpret_expr(interp, v.condition)
+    if interpret_is_truthy(condition) {
+        interpret_stmt(interp, v.thenBranch)
+    } else if v.elseBranch != nil {
+        interpret_stmt(interp, v.elseBranch)
+    }
 
     return Void{}
 }
@@ -91,6 +103,7 @@ interpret_expr :: proc(interp: ^Interpreter, expr: ^Expr) -> Value {
     case Literal:
         return v.value.value
     case Logical:
+        return interpret_logical_expr(interp, v)
     case Set:
     case Super:
     case This:
@@ -118,20 +131,11 @@ interpret_unary_expr :: proc(interp: ^Interpreter, v: Unary) -> Value {
     case TokenType.Minus:
         return -interpret_assert_number(v.operator, right)
     case TokenType.Bang:
-        #partial switch val in right {
-        case Boolean:
-                return !val
-        case Nil:
-                return true
-        }
+        return !interpret_is_truthy(right)
     }
 
     // TODO: unreachable
     return Nil{}
-}
-
-interpret_variable_expr :: proc(interp: ^Interpreter, v: Variable) -> Value {
-    return environment_get(interp.environment, v.name)
 }
 
 interpret_binary_expr :: proc(interp: ^Interpreter, v: Binary) -> Value {
@@ -197,6 +201,26 @@ interpret_binary_expr :: proc(interp: ^Interpreter, v: Binary) -> Value {
     return Nil{}
 }
 
+interpret_variable_expr :: proc(interp: ^Interpreter, v: Variable) -> Value {
+    return environment_get(interp.environment, v.name)
+}
+
+interpret_logical_expr :: proc(interp: ^Interpreter, v: Logical) -> Value {
+    left := interpret_expr(interp, v.left)
+
+    if v.operator.type == TokenType.Or {
+        if interpret_is_truthy(left) {
+            return left
+        }
+    } else {
+        if !interpret_is_truthy(left) {
+            return left
+        }
+    }
+
+    return interpret_expr(interp, v.right)
+}
+
 interpret_is_equal :: proc(left, right: Value) -> bool {
     switch l in left {
     case Number:
@@ -245,6 +269,17 @@ interpret_assert_numbers :: proc(token: Token, left, right: Value) -> (Number, N
     runtime_error(token, "Operands must be numbers.")
 
     return 0, 0
+}
+
+interpret_is_truthy :: proc(value: Value) -> bool {
+    #partial switch val in value {
+    case Boolean:
+        return val
+    case Nil:
+        return false
+    }
+   
+    return true
 }
 
 interpret_stringify :: proc(value: Value) -> string {
