@@ -82,6 +82,8 @@ parser_statement :: proc(parser: ^Parser) -> (^Stmt, bool) {
     using TokenType
 
     switch {
+    case parser_match(parser, []TokenType{For}):
+        return parser_for_statement(parser)
     case parser_match(parser, []TokenType{If}):
         return parser_if_statement(parser)
     case parser_match(parser, []TokenType{Print}):
@@ -93,6 +95,85 @@ parser_statement :: proc(parser: ^Parser) -> (^Stmt, bool) {
     }
 
     return parser_expression_statement(parser)
+}
+
+parser_for_statement :: proc(parser: ^Parser) -> (^Stmt, bool) {
+    using TokenType
+
+    _, ok := parser_consume(parser, LeftParen, "Expect '(' after 'if'.")
+    if !ok {
+        return nil, false
+    }
+
+    initializer: ^Stmt
+    condition: ^Expr
+    increment: ^Expr
+    body: ^Stmt
+
+    if parser_match(parser, []TokenType{Semicolon}) {
+        initializer = nil
+    } else if parser_match(parser, []TokenType{Var}) {
+        initializer, ok = parser_var_declaration(parser)
+    } else {
+        initializer, ok = parser_expression_statement(parser)
+    }
+
+    if !ok {
+        return nil, false
+    }
+
+    if !parser_check(parser, Semicolon) {
+        condition, ok = parser_expression(parser)
+        if !ok {
+            return nil, false
+        }
+    }
+
+    _, ok = parser_consume(parser, Semicolon, "Expect ';' after loop condition.")
+    if !ok {
+        return nil, false
+    }
+
+    if !parser_check(parser, RightParen) {
+        increment, ok = parser_expression(parser)
+        if !ok {
+            return nil, false
+        }
+    }
+
+    _, ok = parser_consume(parser, RightParen, "Expect ')' after for clauses.")
+    if !ok {
+        return nil, false
+    }
+
+    body, ok = parser_statement(parser)
+
+    // desugaring for -> while
+
+    if increment != nil {
+        body = new_block([]^Stmt{
+            body,
+            new_expression(increment),
+        })
+    }
+
+    if condition == nil {
+        condition = new_literal(Token{
+            type=True,
+            value=true,
+        })
+    }
+
+    body = new_while(condition, body)
+
+    if initializer != nil {
+        body = new_block([]^Stmt{
+            initializer,
+            body,
+        })
+    }
+
+    return body, true
 }
 
 parser_if_statement :: proc(parser: ^Parser) -> (^Stmt, bool) {
