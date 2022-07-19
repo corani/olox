@@ -7,8 +7,10 @@ new_callable_clock :: proc() -> Value {
     return new_callable(
         name="<native fn>",
         arity=0,
-        call=proc(interp: ^Interpreter, arguments: []Value) -> Value {
-            return f64(time.time_to_unix(time.now()))
+        call=proc(interp: ^Interpreter, arguments: []Value) -> Result {
+            return ReturnResult{
+                value=f64(time.time_to_unix(time.now())),
+            }
         },
     )
 }
@@ -21,31 +23,36 @@ new_callable_function :: proc(fn: ^Function) -> Value {
     )
 }
 
-callable_function_call :: proc(interp: ^Interpreter, callee: Callable, arguments: []Value) -> Value {
+callable_function_call :: proc(interp: ^Interpreter, callee: Callable, arguments: []Value) -> Result {
     environment := new_environment(interp.globals)
 
     for i := 0; i < len(callee.fn.params); i += 1 {
         environment_define(environment, callee.fn.params[i], arguments[i])
     }
 
-    interpret_block(interp, callee.fn.body[:], environment)
-
-    return Nil{}
+    return interpret_block(interp, callee.fn.body[:], environment)
 }
 
-callable_native_call :: proc(interp: ^Interpreter, callee: Callable, arguments: []Value) -> Value {
+callable_native_call :: proc(interp: ^Interpreter, callee: Callable, arguments: []Value) -> Result {
     return callee.call(interp, arguments)
 }
 
 callable_call :: proc(interp: ^Interpreter, callee: Callable, arguments: []Value) -> Value {
+    res: Result
+
     if callee.call != nil {
-        return callable_native_call(interp, callee, arguments)
-    }
-    if callee.fn != nil {
-        return callable_function_call(interp, callee, arguments)
+        res = callable_native_call(interp, callee, arguments)
+    } else if callee.fn != nil {
+        res = callable_function_call(interp, callee, arguments)
+    } else {
+        report("Callable has no implementation.")
+        res = OkResult{}
     }
 
-    report("Callable has no implementation.")
-
-    return Nil{}
+    #partial switch v in res {
+    case ReturnResult:
+        return v.value
+    case:
+        return Nil{}
+    }
 }

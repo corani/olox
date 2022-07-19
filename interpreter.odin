@@ -11,20 +11,29 @@ Interpreter :: struct {
 new_interpreter :: proc() -> ^Interpreter {
     interp := new(Interpreter)
     interp.globals = new_environment()
-    interp.environment = new_environment()
+    interp.environment = interp.globals
 
     environment_define(interp.globals, Token{text="clock"}, new_callable_clock())
 
     return interp
 }
 
-interpret :: proc(interp: ^Interpreter, stmts: []^Stmt) {
+interpret :: proc(interp: ^Interpreter, stmts: []^Stmt) -> Result{
     for stmt in stmts {
-        interpret_stmt(interp, stmt)
+        res := interpret_stmt(interp, stmt)
+        switch in res {
+        case OkResult:
+        case ErrorResult:
+            return res
+        case ReturnResult:
+            return res
+        }
     }
+
+    return OkResult{}
 }
 
-interpret_stmt :: proc(interp: ^Interpreter, stmt: ^Stmt) -> Void {
+interpret_stmt :: proc(interp: ^Interpreter, stmt: ^Stmt) -> Result {
     switch v in stmt {
     case Block:
         return interpret_block_stmt(interp, v)
@@ -38,30 +47,31 @@ interpret_stmt :: proc(interp: ^Interpreter, stmt: ^Stmt) -> Void {
     case Print:
         return interpret_print_stmt(interp, v)
     case Return:
+        return interpret_return_stmt(interp, v)
     case Var:
         return interpret_var_stmt(interp, v)
     case While:
         return interpret_while_stmt(interp, v)
     }
 
-    return Void{}
+    return ErrorResult{text="unknown statement"}
 }
 
-interpret_print_stmt :: proc(interp: ^Interpreter, v: Print) -> Void {
+interpret_print_stmt :: proc(interp: ^Interpreter, v: Print) -> Result {
     value := interpret_expr(interp, v.expression)
 
     fmt.println(interpret_stringify(value))
 
-    return Void{}
+    return OkResult{}
 }
 
-interpret_expression_stmt :: proc(interp: ^Interpreter, v: Expression) -> Void {
+interpret_expression_stmt :: proc(interp: ^Interpreter, v: Expression) -> Result {
     interpret_expr(interp, v.expression)
 
-    return Void{}
+    return OkResult{}
 }
 
-interpret_function_stmt :: proc(interp: ^Interpreter, v: Function) -> Void {
+interpret_function_stmt :: proc(interp: ^Interpreter, v: Function) -> Result {
     decl := new(Function)
     decl^ = v
 
@@ -69,45 +79,61 @@ interpret_function_stmt :: proc(interp: ^Interpreter, v: Function) -> Void {
 
     environment_define(interp.environment, v.name, function)
 
-    return Void{}
+    return OkResult{}
 }
 
-interpret_if_stmt :: proc(interp: ^Interpreter, v: If) -> Void {
+interpret_return_stmt :: proc(interp: ^Interpreter, v: Return) -> Result {
+    value: Value
+    if v.value != nil {
+        value = interpret_expr(interp, v.value)
+    }
+
+    return ReturnResult{
+        value=value,
+    }
+}
+
+interpret_if_stmt :: proc(interp: ^Interpreter, v: If) -> Result {
     condition := interpret_expr(interp, v.condition)
     if interpret_is_truthy(condition) {
-        interpret_stmt(interp, v.thenBranch)
+        return interpret_stmt(interp, v.thenBranch)
     } else if v.elseBranch != nil {
-        interpret_stmt(interp, v.elseBranch)
+        return interpret_stmt(interp, v.elseBranch)
     }
 
-    return Void{}
+    return OkResult{}
 }
 
-interpret_while_stmt :: proc(interp: ^Interpreter, while: While) -> Void {
+interpret_while_stmt :: proc(interp: ^Interpreter, while: While) -> Result {
     for interpret_is_truthy(interpret_expr(interp, while.condition)) {
-        interpret_stmt(interp, while.body)
+        res := interpret_stmt(interp, while.body)
+        switch in res {
+        case OkResult:
+        case ErrorResult:
+            return res
+        case ReturnResult:
+            return res
+        }
     }
 
-    return Void{}
+    return OkResult{}
 }
 
-interpret_block_stmt :: proc(interp: ^Interpreter, v: Block) -> Void {
-    interpret_block(interp, v.statements[:], new_environment(interp.environment))
-
-    return Void{}
+interpret_block_stmt :: proc(interp: ^Interpreter, v: Block) -> Result {
+    return interpret_block(interp, v.statements[:], new_environment(interp.environment))
 }
 
-interpret_block :: proc(interp: ^Interpreter, body: []^Stmt, environment: ^Environment) -> Void {
+interpret_block :: proc(interp: ^Interpreter, body: []^Stmt, environment: ^Environment) -> Result {
     previous := interp.environment
 
     interp.environment = environment
-    interpret(interp, body)
+    res := interpret(interp, body)
     interp.environment = previous
 
-    return Void{}
+    return res
 }
 
-interpret_var_stmt :: proc(interp: ^Interpreter, v: Var) -> Void {
+interpret_var_stmt :: proc(interp: ^Interpreter, v: Var) -> Result {
     value : Value = Nil{}
 
     if v.initializer != nil {
@@ -116,7 +142,7 @@ interpret_var_stmt :: proc(interp: ^Interpreter, v: Var) -> Void {
 
     environment_define(interp.environment, v.name, value)
 
-    return Void{}
+    return OkResult{}
 }
 
 interpret_expr :: proc(interp: ^Interpreter, expr: ^Expr) -> Value {

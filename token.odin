@@ -15,7 +15,7 @@ String :: string
 Boolean :: bool
 Nil :: struct{}
 
-callable_proc :: proc(interp: ^Interpreter, arguments: []Value) -> Value
+callable_proc :: proc(interp: ^Interpreter, arguments: []Value) -> Result
 
 Callable :: struct{
     name: string,

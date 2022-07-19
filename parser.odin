@@ -150,6 +150,8 @@ parser_statement :: proc(parser: ^Parser) -> (^Stmt, bool) {
         return parser_if_statement(parser)
     case parser_match(parser, []TokenType{Print}):
         return parser_print_statement(parser)
+    case parser_match(parser, []TokenType{Return}):
+        return parser_return_statement(parser)
     case parser_match(parser, []TokenType{While}):
         return parser_while_statement(parser)
     case parser_match(parser, []TokenType{LeftBrace}):
@@ -311,6 +313,29 @@ parser_print_statement :: proc(parser: ^Parser) -> (^Stmt, bool) {
     }
 
     return new_print(value), true 
+}
+
+parser_return_statement :: proc(parser: ^Parser) -> (^Stmt, bool) {
+    using TokenType
+
+    keyword := parser_previous(parser)
+
+    value: ^Expr
+    ok: bool
+
+    if !parser_check(parser, Semicolon) {
+        value, ok = parser_expression(parser)
+        if !ok {
+            return nil, false
+        }
+    }
+
+    _, ok = parser_consume(parser, Semicolon, "Expect ';' after return value.")
+    if !ok {
+        return nil, false
+    }
+
+    return new_return(keyword, value), true
 }
 
 parser_expression_statement :: proc(parser: ^Parser) -> (^Stmt, bool) {
