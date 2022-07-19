@@ -1,6 +1,7 @@
 package main
 
 import "core:os"
+import "core:fmt"
 
 Parser :: struct{
     tokens : []Token,
@@ -39,7 +40,9 @@ parser_declaration :: proc(parser: ^Parser) -> ^Stmt {
     stmt: ^Stmt
     ok: bool
 
-    if parser_match(parser, []TokenType{Var}) {
+    if parser_match(parser, []TokenType{Fun}) {
+        stmt, ok = parser_function(parser, "function")
+    } else if parser_match(parser, []TokenType{Var}) {
         stmt, ok = parser_var_declaration(parser)
     } else {
         stmt, ok = parser_statement(parser)
@@ -52,6 +55,65 @@ parser_declaration :: proc(parser: ^Parser) -> ^Stmt {
     }
 
     return stmt
+}
+
+parser_function :: proc(parser: ^Parser, kind: string) -> (^Stmt, bool) {
+    using TokenType
+
+    name, ok := parser_consume(parser, Identifier, 
+        fmt.tprintf("Expect %s name.", kind))
+    if !ok {
+        return nil, false
+    }
+
+    _, ok = parser_consume(parser, LeftParen,
+        fmt.tprintf("Expect '(' after %s name.", kind))
+    if !ok {
+        return nil, false
+    }
+
+    parameters: [dynamic]Token
+
+    if !parser_check(parser, RightParen) {
+        for {
+            if len(parameters) >= 255 {
+                error(parser_peek(parser), "Can't have more than 255 parameters.")
+                return nil, false
+            }
+
+            name, ok := parser_consume(parser, Identifier, "Expect parameter name.")
+            if !ok {
+                return nil, false
+            }
+
+            append(&parameters, name)
+
+            if !parser_match(parser, []TokenType{Comma}) {
+                break
+            }
+        }
+    }
+
+    _, ok = parser_consume(parser, RightParen, 
+        "Expect ')' after paremeters")
+    if !ok {
+        return nil, false
+    }
+
+    _, ok = parser_consume(parser, LeftBrace,
+        fmt.tprintf("Expect '{' before %s body.", kind))
+    if !ok {
+        return nil, false
+    }
+
+    body: []^Stmt
+
+    body, ok = parser_block(parser)
+    if !ok {
+        return nil, false
+    }
+
+    return new_function(name, parameters[:], body), true
 }
 
 parser_var_declaration :: proc(parser: ^Parser) -> (^Stmt, bool) {
@@ -268,6 +330,15 @@ parser_expression_statement :: proc(parser: ^Parser) -> (^Stmt, bool) {
 }
 
 parser_block_statement :: proc(parser: ^Parser) -> (^Stmt, bool) {
+    body, ok := parser_block(parser)
+    if !ok {
+        return nil, false
+    }
+
+    return new_block(body), true
+}
+
+parser_block :: proc(parser: ^Parser) -> ([]^Stmt, bool) {
     using TokenType
 
     statements: [dynamic]^Stmt
@@ -281,9 +352,12 @@ parser_block_statement :: proc(parser: ^Parser) -> (^Stmt, bool) {
         append(&statements, stmt)
     }
 
-    parser_consume(parser, RightBrace, "Expect '}' after block.")
+    _, ok := parser_consume(parser, RightBrace, "Expect '}' after block.")
+    if !ok {
+        return nil, false
+    }
 
-    return new_block(statements[:]), true
+    return statements[:], true
 }
 
 parser_expression :: proc(parser: ^Parser) -> (^Expr, bool) {
@@ -462,15 +536,69 @@ parser_unary :: proc(parser: ^Parser) -> (^Expr, bool) {
 
         expr = new_unary(operator, right)
     } else {
-        primary, ok := parser_primary(parser)
+        call, ok := parser_call(parser)
         if !ok {
             return nil, false
         }
 
-        expr = primary
+        expr = call
     }
 
     return expr, true
+}
+
+parser_call :: proc(parser: ^Parser) -> (^Expr, bool) {
+    using TokenType
+
+    expr, ok := parser_primary(parser)
+    if !ok {
+        return nil, false
+    }
+
+    for {
+        if parser_match(parser, []TokenType{LeftParen}) {
+            expr, ok = parser_finish_call(parser, expr)
+            if !ok {
+                return nil, false
+            }
+        } else {
+            break
+        }
+    }
+
+    return expr, true
+}
+
+parser_finish_call :: proc(parser: ^Parser, callee: ^Expr) -> (^Expr, bool) {
+    using TokenType
+
+    arguments: [dynamic]^Expr
+
+    if !parser_check(parser, RightParen) {
+        for {
+            if len(arguments) >= 255 {
+                error(parser_peek(parser), "Can't have more than 255 arguments.")
+            }
+
+            expr, ok := parser_expression(parser)
+            if !ok {
+                return nil, false
+            }
+
+            append(&arguments, expr)
+
+            if !parser_match(parser, []TokenType{Comma}) {
+                break
+            }
+        }
+    }
+
+    paren, ok := parser_consume(parser, RightParen, "Expect ')' after arguments.")
+    if !ok {
+        return nil, false
+    }
+
+    return new_call(callee, paren, arguments[:]), true
 }
 
 parser_primary :: proc(parser: ^Parser) -> (^Expr, bool) {

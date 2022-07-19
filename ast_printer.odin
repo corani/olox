@@ -49,6 +49,8 @@ print_expr :: proc(expr: ^Expr) -> string {
             append(&parts, fmt.tprintf("#%v", lit))
         case Nil:
             append(&parts, "<nil>")
+        case Callable:
+            append(&parts, lit.name)
         }
     case Logical :
         append(&parts, "(")

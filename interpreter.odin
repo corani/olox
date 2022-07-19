@@ -4,12 +4,16 @@ import "core:strings"
 import "core:fmt"
 
 Interpreter :: struct {
+    globals: ^Environment,
     environment: ^Environment,
 }
 
 new_interpreter :: proc() -> ^Interpreter {
     interp := new(Interpreter)
+    interp.globals = new_environment()
     interp.environment = new_environment()
+
+    environment_define(interp.globals, Token{text="clock"}, new_callable_clock())
 
     return interp
 }
@@ -28,6 +32,7 @@ interpret_stmt :: proc(interp: ^Interpreter, stmt: ^Stmt) -> Void {
     case Expression:
         return interpret_expression_stmt(interp, v)
     case Function:
+        return interpret_function_stmt(interp, v)
     case If:
         return interpret_if_stmt(interp, v)
     case Print:
@@ -56,6 +61,17 @@ interpret_expression_stmt :: proc(interp: ^Interpreter, v: Expression) -> Void {
     return Void{}
 }
 
+interpret_function_stmt :: proc(interp: ^Interpreter, v: Function) -> Void {
+    decl := new(Function)
+    decl^ = v
+
+    function := new_callable_function(decl)
+
+    environment_define(interp.environment, v.name, function)
+
+    return Void{}
+}
+
 interpret_if_stmt :: proc(interp: ^Interpreter, v: If) -> Void {
     condition := interpret_expr(interp, v.condition)
     if interpret_is_truthy(condition) {
@@ -76,10 +92,16 @@ interpret_while_stmt :: proc(interp: ^Interpreter, while: While) -> Void {
 }
 
 interpret_block_stmt :: proc(interp: ^Interpreter, v: Block) -> Void {
+    interpret_block(interp, v.statements[:], new_environment(interp.environment))
+
+    return Void{}
+}
+
+interpret_block :: proc(interp: ^Interpreter, body: []^Stmt, environment: ^Environment) -> Void {
     previous := interp.environment
 
-    interp.environment = new_environment(previous)
-    interpret(interp, v.statements[:])
+    interp.environment = environment
+    interpret(interp, body)
     interp.environment = previous
 
     return Void{}
@@ -104,6 +126,7 @@ interpret_expr :: proc(interp: ^Interpreter, expr: ^Expr) -> Value {
     case Binary:
         return interpret_binary_expr(interp, v)
     case Call:
+        return interpret_call_expr(interp, v)
     case Get:
     case Grouping:
         return interpret_expr(interp, v.expression)
@@ -181,15 +204,16 @@ interpret_binary_expr :: proc(interp: ^Interpreter, v: Binary) -> Value {
 
             return l + r
         case String:
-            if type_of(right) != String {
-                runtime_error(v.operator, "Operands must be two strings.")
-
-                return ""
+            #partial switch in right {
+            case String:
+                return strings.concatenate([]string{
+                    left.(String), right.(String),
+                })
             }
 
-            return strings.concatenate([]string{
-                left.(String), right.(String),
-            })
+            runtime_error(v.operator, "Operands must be two strings.")
+
+            return ""
         }
 
         runtime_error(v.operator, "Operands must be two numbers or two strings.")
@@ -203,6 +227,30 @@ interpret_binary_expr :: proc(interp: ^Interpreter, v: Binary) -> Value {
         l, r := interpret_assert_numbers(v.operator, left, right)
 
         return l * r
+    }
+
+    return Nil{}
+}
+
+interpret_call_expr :: proc(interp: ^Interpreter, call: Call) -> Value {
+    callee := interpret_expr(interp, call.callee)
+
+    arguments: [dynamic]Value
+    for argument in call.arguments {
+        append(&arguments, interpret_expr(interp, argument))
+    }
+
+    #partial switch v in callee {
+    case Callable:
+        if len(arguments) != v.arity {
+            runtime_error(call.paren, 
+                fmt.tprintf("Expected %d arguments but got %d.", v.arity, len(arguments)))
+            break
+        }
+
+        return callable_call(interp, v, arguments[:])
+    case:
+        runtime_error(call.paren, "Can only call functions and classes.")
     }
 
     return Nil{}
@@ -249,6 +297,11 @@ interpret_is_equal :: proc(left, right: Value) -> bool {
         #partial switch r in right {
         case Nil:
             return true
+        }
+    case Callable:
+        #partial switch r in right {
+        case Callable:
+            return l.call == r.call
         }
     }
 
@@ -299,6 +352,8 @@ interpret_stringify :: proc(value: Value) -> string {
         return fmt.tprint(v)
     case Nil:
         return "<nil>"
+    case Callable:
+        return v.name
     }
 
     return "<invalid>"
