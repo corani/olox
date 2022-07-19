@@ -75,7 +75,7 @@ interpret_function_stmt :: proc(interp: ^Interpreter, v: Function) -> Result {
     decl := new(Function)
     decl^ = v
 
-    function := new_callable_function(decl)
+    function := new_callable_function(decl, interp.environment)
 
     environment_define(interp.environment, v.name, function)
 

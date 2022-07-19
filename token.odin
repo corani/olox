@@ -22,14 +22,16 @@ Callable :: struct{
     arity: int,
     call: callable_proc,
     fn: ^Function,
+    closure: ^Environment,
 }
 
-new_callable :: proc(name: string, arity: int, call: callable_proc = nil, fn: ^Function = nil) -> Value {
+new_callable :: proc(name: string, arity: int, call: callable_proc = nil, fn: ^Function = nil, closure: ^Environment = nil) -> Value {
     callable : Value = Callable{
         name=name,
         arity=arity,
         call=call,
         fn=fn,
+        closure=closure,
     }
 
     return callable

@@ -15,16 +15,17 @@ new_callable_clock :: proc() -> Value {
     )
 }
 
-new_callable_function :: proc(fn: ^Function) -> Value {
+new_callable_function :: proc(fn: ^Function, closure: ^Environment) -> Value {
     return new_callable(
         name=fmt.tprintf("<fn %s>", fn.name.text),
         arity=len(fn.params),
         fn=fn,
+        closure=closure,
     )
 }
 
 callable_function_call :: proc(interp: ^Interpreter, callee: Callable, arguments: []Value) -> Result {
-    environment := new_environment(interp.globals)
+    environment := new_environment(callee.closure)
 
     for i := 0; i < len(callee.fn.params); i += 1 {
         environment_define(environment, callee.fn.params[i], arguments[i])
