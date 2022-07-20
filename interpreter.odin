@@ -6,6 +6,7 @@ import "core:fmt"
 Interpreter :: struct {
     globals: ^Environment,
     environment: ^Environment,
+    locals: map[int]int,
 }
 
 new_interpreter :: proc() -> ^Interpreter {
@@ -175,7 +176,11 @@ interpret_expr :: proc(interp: ^Interpreter, expr: ^Expr) -> Value {
 interpret_assign_expr :: proc(interp: ^Interpreter, v: Assign) -> Value {
     value := interpret_expr(interp, v.value)
 
-    environment_assign(interp.environment, v.name, value)
+    if depth, ok := interp.locals[v.id]; ok {
+        environment_assign_at(interp.environment, v.name, depth, value)
+    } else {
+        environment_assign(interp.globals, v.name, value)
+    }
 
     return value
 }
@@ -283,7 +288,11 @@ interpret_call_expr :: proc(interp: ^Interpreter, call: Call) -> Value {
 }
 
 interpret_variable_expr :: proc(interp: ^Interpreter, v: Variable) -> Value {
-    return environment_get(interp.environment, v.name)
+    // TODO(daniel): there's got to be a better way. Casting doesn't work...
+    expr := new(Expr)
+    expr^ = v
+
+    return interpret_lookup_variable(interp, v.name, expr)
 }
 
 interpret_logical_expr :: proc(interp: ^Interpreter, v: Logical) -> Value {
@@ -300,6 +309,35 @@ interpret_logical_expr :: proc(interp: ^Interpreter, v: Logical) -> Value {
     }
 
     return interpret_expr(interp, v.right)
+}
+
+interpret_resolve :: proc(interp: ^Interpreter, expr: ^Expr, depth: int) {
+    #partial switch v in expr {
+    case Assign:
+        interp.locals[v.id] = depth
+    case Variable:
+        interp.locals[v.id] = depth
+    }
+}
+
+interpret_lookup_variable :: proc(interp: ^Interpreter, name: Token, expr: ^Expr) -> Value{
+    id := -1
+
+    #partial switch v in expr {
+    case Assign:
+        id = v.id
+    case Variable:
+        id = v.id
+    }
+
+    if id >= 0 {
+        depth, ok := interp.locals[id]
+        if ok {
+            return environment_get_at(interp.environment, name, depth)
+        }
+    }
+
+    return environment_get(interp.globals, name)
 }
 
 interpret_is_equal :: proc(left, right: Value) -> bool {

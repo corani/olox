@@ -1,5 +1,13 @@
 package main 
 
+global_ast_id := 0
+
+new_ast_id :: proc() -> int {
+    result := global_ast_id
+    global_ast_id += 1
+    return result
+}
+
 Expr :: union{
     Assign,
     Binary,
@@ -18,6 +26,7 @@ Expr :: union{
 Assign :: struct{
     name : Token,
     value: ^Expr,
+    id: int,
 }
 
 new_assign :: proc(name: Token, value: ^Expr) -> ^Expr {
@@ -25,6 +34,7 @@ new_assign :: proc(name: Token, value: ^Expr) -> ^Expr {
     assign^ = Assign{
         name=name,
         value=value,
+        id=new_ast_id(),
     }
 
     return assign
@@ -34,6 +44,7 @@ Binary :: struct{
     left    : ^Expr,
     operator: Token,
     right   : ^Expr,
+    id: int,
 }
 
 new_binary :: proc(left: ^Expr, operator: Token, right: ^Expr) -> ^Expr {
@@ -42,6 +53,7 @@ new_binary :: proc(left: ^Expr, operator: Token, right: ^Expr) -> ^Expr {
         left=left,
         operator=operator,
         right=right,
+        id=new_ast_id(),
     }
 
     return binary
@@ -51,6 +63,7 @@ Call :: struct{
     callee   : ^Expr,
     paren    : Token,
     arguments: [dynamic]^Expr,
+    id: int,
 }
 
 new_call :: proc(callee: ^Expr, paren: Token, arguments: []^Expr) -> ^Expr {
@@ -65,6 +78,7 @@ new_call :: proc(callee: ^Expr, paren: Token, arguments: []^Expr) -> ^Expr {
         callee=callee,
         paren=paren,
         arguments=args,
+        id=new_ast_id(),
     }
 
     return call
@@ -73,6 +87,7 @@ new_call :: proc(callee: ^Expr, paren: Token, arguments: []^Expr) -> ^Expr {
 Get :: struct{
     object: ^Expr,
     name  : Token,
+    id: int,
 }
 
 new_get :: proc(object: ^Expr, name: Token) -> ^Expr {
@@ -80,6 +95,7 @@ new_get :: proc(object: ^Expr, name: Token) -> ^Expr {
     get^ = Get{
         object=object,
         name=name,
+        id=new_ast_id(),
     }
 
     return get
@@ -87,12 +103,14 @@ new_get :: proc(object: ^Expr, name: Token) -> ^Expr {
 
 Grouping :: struct{
     expression: ^Expr,
+    id: int,
 }
 
 new_grouping :: proc(expr: ^Expr) -> ^Expr {
     grouping := new(Expr)
     grouping^ = Grouping{
         expression=expr,
+        id=new_ast_id(),
     }
 
     return grouping
@@ -100,12 +118,14 @@ new_grouping :: proc(expr: ^Expr) -> ^Expr {
 
 Literal :: struct{
     value: Token,
+    id: int,
 }
 
 new_literal :: proc(value: Token) -> ^Expr {
     literal := new(Expr)
     literal^ = Literal{
         value=value,
+        id=new_ast_id(),
     }
 
     return literal
@@ -115,6 +135,7 @@ Logical :: struct{
     left    : ^Expr,
     operator: Token,
     right   : ^Expr,
+    id: int,
 }
 
 new_logical :: proc(left: ^Expr, operator: Token, right: ^Expr) -> ^Expr {
@@ -123,6 +144,7 @@ new_logical :: proc(left: ^Expr, operator: Token, right: ^Expr) -> ^Expr {
         left=left,
         operator=operator,
         right=right,
+        id=new_ast_id(),
     }
 
     return logical
@@ -132,6 +154,7 @@ Set :: struct{
     object: ^Expr,
     name  : Token,
     value : ^Expr,
+    id: int,
 }
 
 new_set :: proc(object: ^Expr, name: Token, value: ^Expr) -> ^Expr {
@@ -140,6 +163,7 @@ new_set :: proc(object: ^Expr, name: Token, value: ^Expr) -> ^Expr {
         object=object,
         name=name,
         value=value,
+        id=new_ast_id(),
     }
 
     return set
@@ -148,6 +172,7 @@ new_set :: proc(object: ^Expr, name: Token, value: ^Expr) -> ^Expr {
 Super :: struct{
     keyword: Token,
     method : Token,
+    id: int,
 }
 
 new_super :: proc(keyword: Token, method: Token) -> ^Expr {
@@ -155,6 +180,7 @@ new_super :: proc(keyword: Token, method: Token) -> ^Expr {
     super^ = Super{
         keyword=keyword,
         method=method,
+        id=new_ast_id(),
     }
 
     return super
@@ -162,12 +188,14 @@ new_super :: proc(keyword: Token, method: Token) -> ^Expr {
 
 This :: struct{
     keyword: Token,
+    id: int,
 }
 
 new_this :: proc(keyword: Token) -> ^Expr {
     this := new(Expr)
     this^ = This{
         keyword=keyword,
+        id=new_ast_id(),
     }
 
     return this
@@ -176,6 +204,7 @@ new_this :: proc(keyword: Token) -> ^Expr {
 Unary :: struct{
     operator: Token,
     right   : ^Expr,
+    id: int,
 }
 
 new_unary :: proc(operator: Token, right: ^Expr) -> ^Expr {
@@ -183,6 +212,7 @@ new_unary :: proc(operator: Token, right: ^Expr) -> ^Expr {
     unary^ = Unary{
         operator=operator,
         right=right,
+        id=new_ast_id(),
     }
 
     return unary
@@ -190,12 +220,14 @@ new_unary :: proc(operator: Token, right: ^Expr) -> ^Expr {
 
 Variable :: struct{
     name: Token,
+    id: int,
 }
 
 new_variable :: proc(name: Token) -> ^Expr {
     variable := new(Expr)
     variable^ = Variable{
         name=name,
+        id=new_ast_id(),
     }
 
     return variable
@@ -215,6 +247,7 @@ Stmt :: union{
 
 Block :: struct{
     statements: [dynamic]^Stmt,
+    id: int,
 }
 
 new_block :: proc(statements: []^Stmt) -> ^Stmt {
@@ -227,6 +260,7 @@ new_block :: proc(statements: []^Stmt) -> ^Stmt {
     block := new(Stmt)
     block^ = Block{
         statements=stmts,
+        id=new_ast_id(),
     }
 
     return block
@@ -236,6 +270,7 @@ Class :: struct{
     name      : Token,
     superclass: Variable,
     methods   : [dynamic]^Function,
+    id: int,
 }
 
 new_class :: proc(name: Token, superclass: Variable, methods: []^Function) -> ^Stmt {
@@ -250,6 +285,7 @@ new_class :: proc(name: Token, superclass: Variable, methods: []^Function) -> ^S
         name=name,
         superclass=superclass,
         methods=_methods,
+        id=new_ast_id(),
     }
 
     return class
@@ -257,12 +293,14 @@ new_class :: proc(name: Token, superclass: Variable, methods: []^Function) -> ^S
 
 Expression :: struct{
     expression: ^Expr,
+    id: int,
 }
 
 new_expression :: proc(expression: ^Expr) -> ^Stmt {
     stmt := new(Stmt)
     stmt^ = Expression{
         expression=expression,
+        id=new_ast_id(),
     }
 
     return stmt
@@ -272,6 +310,7 @@ Function :: struct{
     name  : Token,
     params: [dynamic]Token,
     body  : [dynamic]^Stmt,
+    id: int,
 }
 
 new_function :: proc(name: Token, params: []Token, body: []^Stmt) -> ^Stmt {
@@ -291,6 +330,7 @@ new_function :: proc(name: Token, params: []Token, body: []^Stmt) -> ^Stmt {
         name=name,
         params=_params,
         body=_body,
+        id=new_ast_id(),
     }
 
     return function
@@ -300,6 +340,7 @@ If :: struct{
     condition : ^Expr,
     thenBranch: ^Stmt,
     elseBranch: ^Stmt,
+    id: int,
 }
 
 new_if :: proc(condition: ^Expr, thenBranch: ^Stmt, elseBranch: ^Stmt) -> ^Stmt {
@@ -308,6 +349,7 @@ new_if :: proc(condition: ^Expr, thenBranch: ^Stmt, elseBranch: ^Stmt) -> ^Stmt 
         condition=condition,
         thenBranch=thenBranch,
         elseBranch=elseBranch,
+        id=new_ast_id(),
     }
 
     return ifs
@@ -315,12 +357,14 @@ new_if :: proc(condition: ^Expr, thenBranch: ^Stmt, elseBranch: ^Stmt) -> ^Stmt 
 
 Print :: struct{
     expression: ^Expr,
+    id: int,
 }
 
 new_print :: proc(expression: ^Expr) -> ^Stmt {
     stmt := new(Stmt)
     stmt^ = Print{
         expression=expression,
+        id=new_ast_id(),
     }
 
     return stmt
@@ -330,6 +374,7 @@ new_print :: proc(expression: ^Expr) -> ^Stmt {
 Return :: struct{
     keyword: Token,
     value  : ^Expr,
+    id: int,
 }
 
 new_return :: proc(keyword: Token, value: ^Expr) -> ^Stmt {
@@ -337,6 +382,7 @@ new_return :: proc(keyword: Token, value: ^Expr) -> ^Stmt {
     returns^ = Return{
         keyword=keyword,
         value=value,
+        id=new_ast_id(),
     }
 
     return returns
@@ -345,6 +391,7 @@ new_return :: proc(keyword: Token, value: ^Expr) -> ^Stmt {
 Var :: struct{
     name       : Token,
     initializer: ^Expr,
+    id: int,
 }
 
 new_var :: proc(name: Token, initializer: ^Expr) -> ^Stmt {
@@ -352,6 +399,7 @@ new_var :: proc(name: Token, initializer: ^Expr) -> ^Stmt {
     var^ = Var{
         name=name,
         initializer=initializer,
+        id=new_ast_id(),
     }
 
     return var
@@ -360,6 +408,7 @@ new_var :: proc(name: Token, initializer: ^Expr) -> ^Stmt {
 While :: struct{
     condition: ^Expr,
     body     : ^Stmt,
+    id: int,
 }
 
 new_while :: proc(condition: ^Expr, body: ^Stmt) -> ^Stmt {
@@ -367,6 +416,7 @@ new_while :: proc(condition: ^Expr, body: ^Stmt) -> ^Stmt {
     while^ = While{
         condition=condition,
         body=body,
+        id=new_ast_id(),
     }
 
     return while

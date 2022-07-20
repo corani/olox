@@ -34,6 +34,18 @@ environment_assign :: proc(environment: ^Environment, name: Token, value: Value)
     return Nil{}
 }
 
+environment_assign_at :: proc(environment: ^Environment, name: Token, depth: int, value: Value) -> Value {
+    ancestor := environment_ancestor_at(environment, depth)
+
+    if ancestor != nil {
+        ancestor.values[name.text] = value
+    }
+
+    runtime_error(name, fmt.tprintf("Undefined variable '%s'.", name.text))
+
+    return Nil{}
+}
+
 environment_get :: proc(environment: ^Environment, name: Token) -> Value {
     value, ok := environment.values[name.text]
     if ok {
@@ -47,4 +59,28 @@ environment_get :: proc(environment: ^Environment, name: Token) -> Value {
     runtime_error(name, fmt.tprintf("Undefined variable '%s'.", name.text))
 
     return Nil{}
+}
+
+environment_get_at :: proc(environment: ^Environment, name: Token, depth: int) -> Value {
+    ancestor := environment_ancestor_at(environment, depth)
+
+    if ancestor != nil {
+        if value, ok := ancestor.values[name.text]; ok {
+            return value
+        }
+    }
+
+    runtime_error(name, fmt.tprintf("Undefined variable '%s'.", name.text))
+
+    return Nil{}
+}
+
+environment_ancestor_at :: proc(environment: ^Environment, depth: int) -> ^Environment {
+    ancestor := environment
+
+    for i := 0; i < depth; i += 1 {
+        ancestor = ancestor.enclosing
+    }
+
+    return ancestor
 }

@@ -54,13 +54,20 @@ run :: proc(data: string) {
 
     tokens := scanner_tokens(scanner)
     parser := new_parser(tokens)
-    stmts := parser_parse(parser)
 
+    stmts := parser_parse(parser)
     if hadError {
         return
     }
 
     interpreter := new_interpreter()
+    resolver := new_resolver(interpreter)
+
+    resolve(resolver, stmts)
+    if hadError {
+        return
+    }
+
     interpret(interpreter, stmts)
 }
 
