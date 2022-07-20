@@ -40,11 +40,14 @@ parser_declaration :: proc(parser: ^Parser) -> ^Stmt {
     stmt: ^Stmt
     ok: bool
 
-    if parser_match(parser, []TokenType{Fun}) {
-        stmt, ok = parser_function(parser, "function")
-    } else if parser_match(parser, []TokenType{Var}) {
+    switch {
+    case parser_match(parser, []TokenType{Class}):
+        stmt, ok = parser_class_declaration(parser)
+    case parser_match(parser, []TokenType{Fun}):
+        stmt, ok = parser_function_declaration(parser, "function")
+    case parser_match(parser, []TokenType{Var}):
         stmt, ok = parser_var_declaration(parser)
-    } else {
+    case:
         stmt, ok = parser_statement(parser)
     }
 
@@ -57,7 +60,42 @@ parser_declaration :: proc(parser: ^Parser) -> ^Stmt {
     return stmt
 }
 
-parser_function :: proc(parser: ^Parser, kind: string) -> (^Stmt, bool) {
+parser_class_declaration :: proc(parser: ^Parser) -> (^Stmt, bool) {
+    using TokenType
+
+    name, ok := parser_consume(parser, Identifier, "Expect class name.")
+    if !ok {
+        return nil, false
+    }
+
+    _, ok = parser_consume(parser, LeftBrace, "Expect '{' before class body.")
+    if !ok {
+        return nil, false
+    }
+
+    methods: [dynamic]Function
+
+    for !parser_check(parser, RightBrace) && !parser_is_at_end(parser) {
+        function, ok := parser_function_declaration(parser, "method")
+        if !ok {
+            return nil, false
+        }
+
+        #partial switch v in function {
+        case Function:
+            append(&methods, v)
+        }
+    }
+
+    _, ok = parser_consume(parser, RightBrace, "Expect '}' after class body.")
+    if !ok {
+        return nil, false
+    }
+
+    return new_class(name, Variable{}, methods[:]), true
+}
+
+parser_function_declaration :: proc(parser: ^Parser, kind: string) -> (^Stmt, bool) {
     using TokenType
 
     name, ok := parser_consume(parser, Identifier, 
@@ -95,7 +133,7 @@ parser_function :: proc(parser: ^Parser, kind: string) -> (^Stmt, bool) {
     }
 
     _, ok = parser_consume(parser, RightParen, 
-        "Expect ')' after paremeters")
+        "Expect ')' after parameters.")
     if !ok {
         return nil, false
     }

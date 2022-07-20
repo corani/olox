@@ -39,6 +39,7 @@ interpret_stmt :: proc(interp: ^Interpreter, stmt: ^Stmt) -> Result {
     case Block:
         return interpret_block_stmt(interp, v)
     case Class:
+        return interpret_class_stmt(interp, v)
     case Expression:
         return interpret_expression_stmt(interp, v)
     case Function:
@@ -62,6 +63,19 @@ interpret_print_stmt :: proc(interp: ^Interpreter, v: Print) -> Result {
     value := interpret_expr(interp, v.expression)
 
     fmt.println(interpret_stringify(value))
+
+    return OkResult{}
+}
+
+interpret_class_stmt :: proc(interp: ^Interpreter, v: Class) -> Result {
+    decl := new(Class)
+    decl^ = v
+
+    environment_define(interp.environment, v.name, nil)
+
+    class := new_callable_class(decl)
+
+    environment_assign(interp.environment, v.name, class)
 
     return OkResult{}
 }
@@ -271,20 +285,7 @@ interpret_call_expr :: proc(interp: ^Interpreter, call: Call) -> Value {
         append(&arguments, interpret_expr(interp, argument))
     }
 
-    #partial switch v in callee {
-    case Callable:
-        if len(arguments) != v.arity {
-            runtime_error(call.paren, 
-                fmt.tprintf("Expected %d arguments but got %d.", v.arity, len(arguments)))
-            break
-        }
-
-        return callable_call(interp, v, arguments[:])
-    case:
-        runtime_error(call.paren, "Can only call functions and classes.")
-    }
-
-    return Nil{}
+    return callable_call(interp, call.paren, callee, arguments[:])
 }
 
 interpret_variable_expr :: proc(interp: ^Interpreter, v: Variable) -> Value {
@@ -365,8 +366,12 @@ interpret_is_equal :: proc(left, right: Value) -> bool {
     case Callable:
         #partial switch r in right {
         case Callable:
-            return l.call == r.call
+            return l.native == r.native
         }
+    case LoxClass:
+        // TODO(daniel): implementation
+    case Instance:
+        // TODO(daniel): implementation
     }
 
     return false
@@ -417,7 +422,11 @@ interpret_stringify :: proc(value: Value) -> string {
     case Nil:
         return "<nil>"
     case Callable:
-        return v.name
+        return fmt.tprintf("<fn %s>", v.name)
+    case LoxClass:
+        return fmt.tprintf("<class %s>", v.name)
+    case Instance:
+        return fmt.tprintf("<instance %s>", v.class.name.text)
     }
 
     return "<invalid>"

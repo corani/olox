@@ -40,18 +40,7 @@ print_expr :: proc(expr: ^Expr) -> string {
         append(&parts, print_expr(v.expression))
         append(&parts, ")")
     case Literal :
-        switch lit in v.value.value {
-        case Number:
-            append(&parts, fmt.tprint(lit))
-        case String:
-            append(&parts, fmt.tprintf(`"%s"`, lit))
-        case Boolean:
-            append(&parts, fmt.tprintf("#%v", lit))
-        case Nil:
-            append(&parts, "<nil>")
-        case Callable:
-            append(&parts, lit.name)
-        }
+        append(&parts, interpret_stringify(v.value.value))
     case Logical :
         append(&parts, "(")
         append(&parts, v.operator.text)

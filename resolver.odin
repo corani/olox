@@ -29,6 +29,7 @@ resolve_stmt :: proc(resolver: ^Resolver, stmt: ^Stmt) {
     case Block:
         resolve_block_stmt(resolver, v)
     case Class:
+        resolve_class_stmt(resolver, v)
     case Expression:
         resolve_expr(resolver, v.expression)
     case Function:
@@ -50,6 +51,11 @@ resolve_block_stmt :: proc(resolver: ^Resolver, block: Block) {
     resolve_begin_scope(resolver)
     resolve(resolver, block.statements[:])
     resolve_end_scope(resolver)
+}
+
+resolve_class_stmt :: proc(resolver: ^Resolver, class: Class) {
+    resolve_declare(resolver, class.name)
+    resolve_define(resolver, class.name)
 }
 
 resolve_function_stmt :: proc(resolver: ^Resolver, function: Function) {
