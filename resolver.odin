@@ -7,12 +7,14 @@ Resolver :: struct{
     interp: ^Interpreter,
     scopes: queue.Queue(map[string]bool),
     currentFunction: FunctionType,
+    currentClass: ClassType,
 }
 
 new_resolver :: proc(interp: ^Interpreter) -> ^Resolver {
     resolver := new(Resolver)
     resolver.interp = interp
     resolver.currentFunction = FunctionType.None
+    resolver.currentClass = ClassType.None
     queue.init(&resolver.scopes)
 
     return resolver
@@ -54,12 +56,26 @@ resolve_block_stmt :: proc(resolver: ^Resolver, block: Block) {
 }
 
 resolve_class_stmt :: proc(resolver: ^Resolver, class: Class) {
+    enclosingClass := resolver.currentClass
+    resolver.currentClass = ClassType.Class
+
     resolve_declare(resolver, class.name)
     resolve_define(resolver, class.name)
+
+    resolve_begin_scope(resolver)
+    resolve_define(resolver, Token{
+        type=TokenType.This,
+        line=class.name.line,
+        text="this",
+    })
 
     for method in class.methods {
         resolve_function(resolver, method, FunctionType.Method)
     }
+
+    resolve_end_scope(resolver)
+
+    resolver.currentClass = enclosingClass
 }
 
 resolve_function_stmt :: proc(resolver: ^Resolver, function: Function) {
@@ -140,11 +156,24 @@ resolve_expr :: proc(resolver: ^Resolver, expr: ^Expr) {
         resolve_set_expr(resolver, v)
     case Super:
     case This:
+        resolve_this_expr(resolver, v)
     case Unary:
         resolve_expr(resolver, v.right)
     case Variable:
         resolve_variable_expr(resolver, v)
     }
+}
+
+resolve_this_expr :: proc(resolver: ^Resolver, this: This) {
+    if resolver.currentClass == ClassType.None {
+        error(this.keyword, "Can't use `this` outside of a class.")
+        return
+    }
+
+    expr := new(Expr)
+    expr^ = this
+
+    resolve_local(resolver, expr, this.keyword)
 }
 
 resolve_assign_expr :: proc(resolver: ^Resolver, assign: Assign) {

@@ -84,3 +84,14 @@ environment_ancestor_at :: proc(environment: ^Environment, depth: int) -> ^Envir
 
     return ancestor
 }
+
+environment_depth :: proc(environment: ^Environment) -> int {
+    current := environment
+    i := 0
+
+    for i = 0; current != nil; i += 1 {
+        current = current.enclosing
+    }
+
+    return i
+}

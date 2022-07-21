@@ -186,6 +186,7 @@ interpret_expr :: proc(interp: ^Interpreter, expr: ^Expr) -> Value {
         return interpret_set_expr(interp, v)
     case Super:
     case This:
+        return interpret_lookup_variable(interp, v.keyword, expr)
     case Unary:
         return interpret_unary_expr(interp, v)
     case Variable:
@@ -374,7 +375,7 @@ interpret_lookup_variable :: proc(interp: ^Interpreter, name: Token, expr: ^Expr
         }
     }
 
-    return environment_get(interp.globals, name)
+    return environment_get(interp.environment, name)
 }
 
 interpret_is_equal :: proc(left, right: Value) -> bool {

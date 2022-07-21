@@ -691,6 +691,8 @@ parser_primary :: proc(parser: ^Parser) -> (^Expr, bool) {
         expr = new_literal(parser_advance(parser))
     case parser_check(parser, String):
         expr = new_literal(parser_advance(parser))
+    case parser_check(parser, This):
+        expr = new_this(parser_advance(parser))
     case parser_check(parser, Identifier):
         expr = new_variable(parser_advance(parser))
     case parser_check(parser, LeftParen):

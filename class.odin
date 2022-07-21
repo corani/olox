@@ -2,6 +2,11 @@ package main
 
 import "core:fmt"
 
+ClassType :: enum{
+    None,
+    Class,
+}
+
 LoxClass :: struct{
     class: ^Class,
     name: string,
@@ -48,7 +53,7 @@ instance_get :: proc(instance: ^Instance, name: Token) -> Value {
 
     method, ok := class_find_method(instance.class, name)
     if ok {
-        return method
+        return callable_bind(method, instance)
     }
 
     runtime_error(name, fmt.tprintf("Undefined property '%s'.", name.text))

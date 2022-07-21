@@ -34,6 +34,20 @@ new_callable_class :: proc(class: ^Class, methods: map[string]Callable) -> Value
     }
 }
 
+callable_bind :: proc(callable: Callable, instance: ^Instance) -> Callable {
+    if fn := callable.function; fn != nil {
+        environment := new_environment(fn.closure)
+        environment_define(environment, Token{
+            type=TokenType.This,
+            text="this",
+        }, instance)
+
+        return new_callable_function(fn.function, environment)
+    }
+
+    return callable
+}
+
 callable_class_call :: proc(interp: ^Interpreter, callee: Callable, arguments: []Value) -> Result {
     instance := new_lox_instance(callee.class)
 
