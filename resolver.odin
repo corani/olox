@@ -123,12 +123,14 @@ resolve_expr :: proc(resolver: ^Resolver, expr: ^Expr) {
     case Call:
         resolve_call_expr(resolver, v)
     case Get:
+        resolve_get_expr(resolver, v)
     case Grouping:
         resolve_expr(resolver, v.expression)
     case Literal:
     case Logical:
         resolve_logical_expr(resolver, v)
     case Set:
+        resolve_set_expr(resolver, v)
     case Super:
     case This:
     case Unary:
@@ -158,6 +160,15 @@ resolve_call_expr :: proc(resolver: ^Resolver, call: Call) {
     for argument in call.arguments {
         resolve_expr(resolver, argument)
     }
+}
+
+resolve_get_expr :: proc(resolver: ^Resolver, get: Get) {
+    resolve_expr(resolver, get.object)
+}
+
+resolve_set_expr :: proc(resolver: ^Resolver, set: Set) {
+    resolve_expr(resolver, set.value)
+    resolve_expr(resolver, set.object)
 }
 
 resolve_logical_expr :: proc(resolver: ^Resolver, expr: Logical) {

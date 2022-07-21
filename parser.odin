@@ -445,6 +445,8 @@ parser_assignment :: proc(parser: ^Parser) -> (^Expr, bool) {
         #partial switch l in expr {
         case Variable:
             return new_assign(l.name, value), true
+        case Get:
+            return new_set(l.object, l.name, value), true
         }
 
         error(equals, "Invalid assignment target.")
@@ -619,17 +621,23 @@ parser_call :: proc(parser: ^Parser) -> (^Expr, bool) {
     }
 
     for {
-        if parser_match(parser, []TokenType{LeftParen}) {
+        switch {
+        case parser_match(parser, []TokenType{LeftParen}):
             expr, ok = parser_finish_call(parser, expr)
             if !ok {
                 return nil, false
             }
-        } else {
-            break
+        case parser_match(parser, []TokenType{Dot}):
+            name, ok := parser_consume(parser, Identifier, "Expect property name after '.'.")
+            if !ok {
+                return nil, false
+            }
+
+            expr = new_get(expr, name)
+        case:
+            return expr, true
         }
     }
-
-    return expr, true
 }
 
 parser_finish_call :: proc(parser: ^Parser, callee: ^Expr) -> (^Expr, bool) {

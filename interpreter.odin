@@ -169,6 +169,7 @@ interpret_expr :: proc(interp: ^Interpreter, expr: ^Expr) -> Value {
     case Call:
         return interpret_call_expr(interp, v)
     case Get:
+        return interpret_get_expr(interp, v)
     case Grouping:
         return interpret_expr(interp, v.expression)
     case Literal:
@@ -176,6 +177,7 @@ interpret_expr :: proc(interp: ^Interpreter, expr: ^Expr) -> Value {
     case Logical:
         return interpret_logical_expr(interp, v)
     case Set:
+        return interpret_set_expr(interp, v)
     case Super:
     case This:
     case Unary:
@@ -288,6 +290,34 @@ interpret_call_expr :: proc(interp: ^Interpreter, call: Call) -> Value {
     return callable_call(interp, call.paren, callee, arguments[:])
 }
 
+interpret_get_expr :: proc(interp: ^Interpreter, get: Get) -> Value {
+    object := interpret_expr(interp, get.object)
+    value : Value = Nil{}
+
+    #partial switch instance in object {
+    case ^Instance:
+        value = instance_get(instance, get.name)
+    case:
+        runtime_error(get.name, "Only instances have properties.")
+    }
+
+    return value
+}
+
+interpret_set_expr :: proc(interp: ^Interpreter, set: Set) -> Value {
+    object := interpret_expr(interp, set.object)
+    value := interpret_expr(interp, set.value)
+
+    #partial switch instance in object {
+    case ^Instance:
+        instance_set(instance, set.name, value)
+    case:
+        runtime_error(set.name, "Only instances have fields.")
+    }
+
+    return value
+}
+
 interpret_variable_expr :: proc(interp: ^Interpreter, v: Variable) -> Value {
     // TODO(daniel): there's got to be a better way. Casting doesn't work...
     expr := new(Expr)
@@ -370,7 +400,7 @@ interpret_is_equal :: proc(left, right: Value) -> bool {
         }
     case LoxClass:
         // TODO(daniel): implementation
-    case Instance:
+    case ^Instance:
         // TODO(daniel): implementation
     }
 
@@ -425,7 +455,7 @@ interpret_stringify :: proc(value: Value) -> string {
         return fmt.tprintf("<fn %s>", v.name)
     case LoxClass:
         return fmt.tprintf("<class %s>", v.name)
-    case Instance:
+    case ^Instance:
         return fmt.tprintf("<instance %s>", v.class.name.text)
     }
 

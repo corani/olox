@@ -6,7 +6,7 @@ Value :: union{
     Boolean,
     Callable,
     LoxClass,
-    Instance,
+    ^Instance,
     Nil,
 }
 
