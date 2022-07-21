@@ -65,12 +65,16 @@ resolve_class_stmt :: proc(resolver: ^Resolver, class: Class) {
     resolve_begin_scope(resolver)
     resolve_define(resolver, Token{
         type=TokenType.This,
-        line=class.name.line,
         text="this",
     })
 
     for method in class.methods {
-        resolve_function(resolver, method, FunctionType.Method)
+        type := FunctionType.Method
+        if method.name.text == "init" {
+            type = FunctionType.Initializer
+        }
+
+        resolve_function(resolver, method, type)
     }
 
     resolve_end_scope(resolver)
@@ -112,6 +116,10 @@ resolve_return_stmt :: proc(resolver: ^Resolver, stmt: Return) {
     }
 
     if stmt.value != nil {
+        if resolver.currentFunction == FunctionType.Initializer {
+            error(stmt.keyword, "Can't return a value from a class initializer.")
+        }
+
         resolve_expr(resolver, stmt.value)
     }
 }

@@ -22,9 +22,9 @@ new_callable_clock :: proc() -> Callable {
     }
 }
 
-new_callable_function :: proc(fn: ^Function, closure: ^Environment) -> Callable {
+new_callable_function :: proc(fn: ^Function, closure: ^Environment, isInitializer: bool) -> Callable {
     return Callable{
-        function=new_lox_function(fn, closure),
+        function=new_lox_function(fn, closure, isInitializer),
     }
 }
 
@@ -42,16 +42,10 @@ callable_bind :: proc(callable: Callable, instance: ^Instance) -> Callable {
             text="this",
         }, instance)
 
-        return new_callable_function(fn.function, environment)
+        return new_callable_function(fn.decl, environment, fn.isInitializer)
     }
 
     return callable
-}
-
-callable_class_call :: proc(interp: ^Interpreter, callee: Callable, arguments: []Value) -> Result {
-    instance := new_lox_instance(callee.class)
-
-    return ReturnResult{value=instance}
 }
 
 callable_get_arity :: proc(callable: Callable) -> int {
@@ -80,6 +74,19 @@ callable_get_name :: proc(callable: Callable) -> string {
     }
 }
 
+callable_get_token :: proc(callable: Callable) -> Token {
+    switch{
+    case callable.native   != nil: 
+        return native_function_get_token(callable.native)
+    case callable.function != nil: 
+        return lox_function_get_token(callable.function)
+    case callable.class    != nil:
+        return class_get_token(callable.class)
+    case:
+        return Token{}
+    }
+}
+
 callable_call :: proc(interp: ^Interpreter, token: Token, value: Value, arguments: []Value) -> Value {
     res: Result
 
@@ -96,7 +103,7 @@ callable_call :: proc(interp: ^Interpreter, token: Token, value: Value, argument
         } else if callee.function != nil {
             res = lox_function_call(callee.function, interp, arguments)
         } else if callee.class != nil {
-            res = callable_class_call(interp, callee, arguments)
+            res = class_new_instance(callee.class, interp, arguments)
         } else {
             report("Callable has no implementation.")
             res = OkResult{}

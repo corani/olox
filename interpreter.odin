@@ -75,7 +75,7 @@ interpret_class_stmt :: proc(interp: ^Interpreter, v: Class) -> Result {
 
     methods: map[string]Callable
     for method in v.methods {
-        fn := new_callable_function(method, interp.environment)
+        fn := new_callable_function(method, interp.environment, method.name.text == "init")
         methods[method.name.text] = fn
     }
 
@@ -96,7 +96,7 @@ interpret_function_stmt :: proc(interp: ^Interpreter, v: Function) -> Result {
     decl := new(Function)
     decl^ = v
 
-    function := new_callable_function(decl, interp.environment)
+    function := new_callable_function(decl, interp.environment, false)
 
     environment_define(interp.environment, v.name, function)
 
