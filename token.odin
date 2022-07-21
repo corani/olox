@@ -5,7 +5,7 @@ Value :: union{
     String,
     Boolean,
     Callable,
-    LoxClass,
+    ^LoxClass,
     ^Instance,
     Nil,
 }

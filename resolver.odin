@@ -56,16 +56,23 @@ resolve_block_stmt :: proc(resolver: ^Resolver, block: Block) {
 resolve_class_stmt :: proc(resolver: ^Resolver, class: Class) {
     resolve_declare(resolver, class.name)
     resolve_define(resolver, class.name)
+
+    for method in class.methods {
+        resolve_function(resolver, method, FunctionType.Method)
+    }
 }
 
 resolve_function_stmt :: proc(resolver: ^Resolver, function: Function) {
     resolve_declare(resolver, function.name)
     resolve_define(resolver, function.name)
 
-    resolve_function(resolver, function, FunctionType.Function)
+    fn := new(Function)
+    fn^ = function
+
+    resolve_function(resolver, fn, FunctionType.Function)
 }
 
-resolve_function :: proc(resolver: ^Resolver, function: Function, type: FunctionType) {
+resolve_function :: proc(resolver: ^Resolver, function: ^Function, type: FunctionType) {
     enclosingFunction := resolver.currentFunction
     resolver.currentFunction = type
 

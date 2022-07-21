@@ -73,7 +73,7 @@ parser_class_declaration :: proc(parser: ^Parser) -> (^Stmt, bool) {
         return nil, false
     }
 
-    methods: [dynamic]Function
+    methods: [dynamic]^Function
 
     for !parser_check(parser, RightBrace) && !parser_is_at_end(parser) {
         function, ok := parser_function_declaration(parser, "method")
@@ -83,7 +83,10 @@ parser_class_declaration :: proc(parser: ^Parser) -> (^Stmt, bool) {
 
         #partial switch v in function {
         case Function:
-            append(&methods, v)
+            fn := new(Function)
+            fn^ = v
+
+            append(&methods, fn)
         }
     }
 

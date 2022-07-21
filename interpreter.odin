@@ -73,7 +73,13 @@ interpret_class_stmt :: proc(interp: ^Interpreter, v: Class) -> Result {
 
     environment_define(interp.environment, v.name, nil)
 
-    class := new_callable_class(decl)
+    methods: map[string]Callable
+    for method in v.methods {
+        fn := new_callable_function(method, interp.environment)
+        methods[method.name.text] = fn
+    }
+
+    class := new_callable_class(decl, methods)
 
     environment_assign(interp.environment, v.name, class)
 
@@ -398,7 +404,7 @@ interpret_is_equal :: proc(left, right: Value) -> bool {
         case Callable:
             return l.native == r.native
         }
-    case LoxClass:
+    case ^LoxClass:
         // TODO(daniel): implementation
     case ^Instance:
         // TODO(daniel): implementation
@@ -452,11 +458,11 @@ interpret_stringify :: proc(value: Value) -> string {
     case Nil:
         return "<nil>"
     case Callable:
-        return fmt.tprintf("<fn %s>", v.name)
-    case LoxClass:
-        return fmt.tprintf("<class %s>", v.name)
+        return callable_get_name(v)
+    case ^LoxClass:
+        return v.name
     case ^Instance:
-        return fmt.tprintf("<instance %s>", v.class.name.text)
+        return v.name
     }
 
     return "<invalid>"
