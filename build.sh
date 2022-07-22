@@ -1,4 +1,5 @@
 #!/bin/bash 
 set -xe
 
-odin build . -out:olox 
+mkdir -p bin
+odin build src/ -out:bin/olox 

@@ -1,0 +1,48 @@
+fun hello(name) {
+    print "Hello, " + name + "!";
+}
+
+hello("world");
+
+class Cake {
+    init(flavor) {
+        this.flavor = flavor;
+    }
+
+    taste() {
+        var adjective = "delicious";
+        print "The " + this.flavor + " cake is " + adjective + "!";
+    }
+}
+
+var cake = Cake("German chocolate");
+cake.taste();
+
+class Bagel < Cake {
+    eat() {
+        print "Nom nom nom";
+    }
+}
+var bagel = Bagel("bagel");
+print bagel;
+
+bagel.shape = "round";
+print bagel.shape;
+bagel.eat();
+bagel.taste();
+
+class Doughnut {
+    cook() {
+        print "Fry until golden brown.";
+    }
+}
+
+class BostonCream < Doughnut {
+    cook() {
+        super.cook();
+        print "Pipe full of custard and coat with chocolate.";
+    }
+}
+
+BostonCream().cook();
+
