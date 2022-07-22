@@ -28,9 +28,9 @@ new_callable_function :: proc(fn: ^Function, closure: ^Environment, isInitialize
     }
 }
 
-new_callable_class :: proc(class: ^Class, methods: map[string]Callable) -> Value {
+new_callable_class :: proc(class: ^Class, super: ^LoxClass, methods: map[string]Callable) -> Callable {
     return Callable{
-        class=new_lox_class(class, methods),
+        class=new_lox_class(class, super, methods),
     }
 }
 

@@ -68,22 +68,52 @@ interpret_print_stmt :: proc(interp: ^Interpreter, v: Print) -> Result {
 }
 
 interpret_class_stmt :: proc(interp: ^Interpreter, v: Class) -> Result {
+    superclass: ^LoxClass
+
+    if v.superclass != nil {
+        super := interpret_variable_expr(interp, v.superclass^)
+        #partial switch s in super {
+        case Callable:
+            if s.class == nil {
+                runtime_error(v.superclass.name, "Superclass must be a class.")
+            }
+
+            superclass = s.class
+        case:
+            runtime_error(v.superclass.name, "Superclass must be a class.")
+        }
+    }
+
+    enclosing := interp.environment
+    environment_define(enclosing, v.name, nil)
+
+    if superclass != nil {
+        interp.environment = new_environment(enclosing)
+        environment_define(interp.environment, Token{text="super"}, superclass)
+    }
+
     decl := new(Class)
     decl^ = v
 
-    environment_define(interp.environment, v.name, nil)
+    class := interpret_class(interp, decl, superclass)
 
-    methods: map[string]Callable
-    for method in v.methods {
-        fn := new_callable_function(method, interp.environment, method.name.text == "init")
-        methods[method.name.text] = fn
+    if superclass != nil {
+        interp.environment = enclosing
     }
-
-    class := new_callable_class(decl, methods)
 
     environment_assign(interp.environment, v.name, class)
 
     return OkResult{}
+}
+
+interpret_class :: proc(interp: ^Interpreter, class: ^Class, super: ^LoxClass) -> Callable {
+    methods: map[string]Callable
+    for method in class.methods {
+        fn := new_callable_function(method, interp.environment, method.name.text == "init")
+        methods[method.name.text] = fn
+    }
+
+    return new_callable_class(class, super, methods)
 }
 
 interpret_expression_stmt :: proc(interp: ^Interpreter, v: Expression) -> Result {
@@ -185,6 +215,7 @@ interpret_expr :: proc(interp: ^Interpreter, expr: ^Expr) -> Value {
     case Set:
         return interpret_set_expr(interp, v)
     case Super:
+        return interpret_super_expr(interp, v)
     case This:
         return interpret_lookup_variable(interp, v.keyword, expr)
     case Unary:
@@ -325,6 +356,36 @@ interpret_set_expr :: proc(interp: ^Interpreter, set: Set) -> Value {
     return value
 }
 
+interpret_super_expr :: proc(interp: ^Interpreter, super: Super) -> Value {
+    depth := interp.locals[super.id]
+
+    superclass: ^LoxClass
+    object: ^Instance
+
+    #partial switch v in environment_get_at(interp.environment, super.keyword, depth) {
+    case ^LoxClass:
+        superclass = v
+    case:
+        return Nil{}
+    }
+
+    #partial switch v in environment_get_at(interp.environment, Token{text="this"},depth-1) {
+    case ^Instance:
+        object = v
+    case:
+        return Nil{}
+    }
+
+    method, ok := class_find_method(superclass, super.method)
+    if !ok {
+        runtime_error(super.method, fmt.tprintf("Undefiend property `%s`.", super.method.text))
+
+        return Nil{}
+    }
+
+    return callable_bind(method, object)
+}
+
 interpret_variable_expr :: proc(interp: ^Interpreter, v: Variable) -> Value {
     // TODO(daniel): there's got to be a better way. Casting doesn't work...
     expr := new(Expr)
@@ -355,6 +416,12 @@ interpret_resolve :: proc(interp: ^Interpreter, expr: ^Expr, depth: int) {
         interp.locals[v.id] = depth
     case Variable:
         interp.locals[v.id] = depth
+    case This:
+        interp.locals[v.id] = depth
+    case Super:
+        interp.locals[v.id] = depth
+    case:
+        fmt.println("interpret_resolve: try to resolve", expr)
     }
 }
 

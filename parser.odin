@@ -68,6 +68,20 @@ parser_class_declaration :: proc(parser: ^Parser) -> (^Stmt, bool) {
         return nil, false
     }
 
+    superclass: ^Variable
+    if parser_match(parser, []TokenType{Less}) {
+        name, ok := parser_consume(parser, Identifier, "Expect superclass name.")
+        if !ok {
+            return nil, false
+        }
+
+        expr := new_variable(name)
+        #partial switch v in expr {
+        case Variable:
+            superclass = &v
+        }
+    }
+
     _, ok = parser_consume(parser, LeftBrace, "Expect '{' before class body.")
     if !ok {
         return nil, false
@@ -95,7 +109,7 @@ parser_class_declaration :: proc(parser: ^Parser) -> (^Stmt, bool) {
         return nil, false
     }
 
-    return new_class(name, Variable{}, methods[:]), true
+    return new_class(name, superclass, methods[:]), true
 }
 
 parser_function_declaration :: proc(parser: ^Parser, kind: string) -> (^Stmt, bool) {
@@ -691,6 +705,18 @@ parser_primary :: proc(parser: ^Parser) -> (^Expr, bool) {
         expr = new_literal(parser_advance(parser))
     case parser_check(parser, String):
         expr = new_literal(parser_advance(parser))
+    case parser_check(parser, Super):
+        keyword := parser_advance(parser)
+        if _, ok := parser_consume(parser, Dot, "Expect `.` after `super`."); !ok {
+            return nil, false
+        }
+
+        method, ok := parser_consume(parser, Identifier, "Expect superclass method name.")
+        if !ok {
+            return nil, false
+        }
+
+        expr = new_super(keyword, method)
     case parser_check(parser, This):
         expr = new_this(parser_advance(parser))
     case parser_check(parser, Identifier):

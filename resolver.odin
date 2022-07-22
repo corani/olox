@@ -62,6 +62,22 @@ resolve_class_stmt :: proc(resolver: ^Resolver, class: Class) {
     resolve_declare(resolver, class.name)
     resolve_define(resolver, class.name)
 
+    if class.superclass != nil {
+        resolver.currentClass = ClassType.Subclass;
+
+        if class.name.text == class.superclass.name.text {
+            error(class.superclass.name, "A class can't inherit from itself.")
+        }
+
+        resolve_variable_expr(resolver, class.superclass^)
+
+        resolve_begin_scope(resolver)
+        resolve_define(resolver, Token{
+            type=TokenType.Super,
+            text="super",
+        })
+    }
+
     resolve_begin_scope(resolver)
     resolve_define(resolver, Token{
         type=TokenType.This,
@@ -78,6 +94,10 @@ resolve_class_stmt :: proc(resolver: ^Resolver, class: Class) {
     }
 
     resolve_end_scope(resolver)
+
+    if class.superclass != nil {
+        resolve_end_scope(resolver)
+    }
 
     resolver.currentClass = enclosingClass
 }
@@ -163,6 +183,7 @@ resolve_expr :: proc(resolver: ^Resolver, expr: ^Expr) {
     case Set:
         resolve_set_expr(resolver, v)
     case Super:
+        resolve_super_expr(resolver, v)
     case This:
         resolve_this_expr(resolver, v)
     case Unary:
@@ -182,6 +203,20 @@ resolve_this_expr :: proc(resolver: ^Resolver, this: This) {
     expr^ = this
 
     resolve_local(resolver, expr, this.keyword)
+}
+
+resolve_super_expr :: proc(resolver: ^Resolver, super: Super) {
+    switch resolver.currentClass {
+    case ClassType.None:
+        error(super.keyword, "Can't use `super` outside of a class.")
+    case ClassType.Class:
+        error(super.keyword, "Can't use `super` in a class with no superclass.")
+    case ClassType.Subclass:
+        expr := new(Expr)
+        expr^ = super 
+
+        resolve_local(resolver, expr, super.keyword)
+    }
 }
 
 resolve_assign_expr :: proc(resolver: ^Resolver, assign: Assign) {

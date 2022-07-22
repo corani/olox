@@ -268,12 +268,12 @@ new_block :: proc(statements: []^Stmt) -> ^Stmt {
 
 Class :: struct{
     name      : Token,
-    superclass: Variable,
+    superclass: ^Variable,
     methods   : [dynamic]^Function,
     id: int,
 }
 
-new_class :: proc(name: Token, superclass: Variable, methods: []^Function) -> ^Stmt {
+new_class :: proc(name: Token, superclass: ^Variable, methods: []^Function) -> ^Stmt {
     _methods: [dynamic]^Function
 
     for m in methods {

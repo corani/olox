@@ -5,18 +5,21 @@ import "core:fmt"
 ClassType :: enum{
     None,
     Class,
+    Subclass,
 }
 
 LoxClass :: struct{
     class: ^Class,
+    super: ^LoxClass,
     name: string,
     arity: int,
     methods: map[string]Callable,
 }
 
-new_lox_class :: proc(class: ^Class, methods: map[string]Callable) -> ^LoxClass {
+new_lox_class :: proc(class: ^Class, super: ^LoxClass, methods: map[string]Callable) -> ^LoxClass {
     result := new(LoxClass)
     result.class = class
+    result.super = super
     result.name = fmt.tprintf("<class %s>", class.name.text)
     result.arity = 0
     result.methods = methods
@@ -41,6 +44,10 @@ class_find_initializer :: proc(class: ^LoxClass) -> (Callable, bool) {
 class_find_method :: proc(class: ^LoxClass, name: Token) -> (Callable, bool) {
     if v, ok := class.methods[name.text]; ok {
         return v, true
+    }
+
+    if class.super != nil {
+        return class_find_method(class.super, name)
     }
 
     return Callable{}, false
