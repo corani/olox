@@ -3,85 +3,71 @@ package main
 import "core:fmt"
 import "core:time"
 
-// TODO(daniel): maybe Callable should be an enum?
-Callable :: struct{
-    native: ^NativeFunction,
-    function: ^LoxFunction,
-    class: ^LoxClass,
+Callable :: union{
+    ^NativeFunction,
+    ^LoxFunction,
+    ^LoxClass,
 }
 
 new_callable_clock :: proc() -> Callable {
-    return Callable{
-        native=new_native_function(
-            proc(interp: ^Interpreter, arguments: []Value) -> Result {
-                return ReturnResult{
-                    value=f64(time.time_to_unix(time.now())),
-                }
-            }, "<native clock>", 0,
-        ),
-    }
-}
-
-new_callable_function :: proc(fn: ^Function, closure: ^Environment, isInitializer: bool) -> Callable {
-    return Callable{
-        function=new_lox_function(fn, closure, isInitializer),
-    }
-}
-
-new_callable_class :: proc(class: ^Class, super: ^LoxClass, methods: map[string]Callable) -> Callable {
-    return Callable{
-        class=new_lox_class(class, super, methods),
-    }
+    return new_native_function(
+        proc(interp: ^Interpreter, arguments: []Value) -> Result {
+            return ReturnResult{
+                value = f64(time.time_to_unix(time.now())),
+            }
+        }, "<native clock>", 0,
+    )
 }
 
 callable_bind :: proc(callable: Callable, instance: ^Instance) -> Callable {
-    if fn := callable.function; fn != nil {
+    #partial switch fn in callable {
+    case ^LoxFunction:
         environment := new_environment(fn.closure)
         environment_define(environment, Token{
-            type=TokenType.This,
-            text="this",
+            type = .This,
+            text = "this",
         }, instance)
 
-        return new_callable_function(fn.decl, environment, fn.isInitializer)
+        return new_lox_function(fn.decl, environment, fn.isInitializer)
     }
 
     return callable
 }
 
 callable_get_arity :: proc(callable: Callable) -> int {
-    switch {
-    case callable.native   != nil: 
-        return callable.native.arity
-    case callable.function != nil: 
-        return callable.function.arity
-    case callable.class    != nil: 
-        return callable.class.arity
+    switch v in callable {
+    case ^NativeFunction:
+        return v.arity
+    case ^LoxFunction:
+        return v.arity
+    case ^LoxClass:
+        return v.arity
     case:
         return 0
     }
 }
 
 callable_get_name :: proc(callable: Callable) -> string {
-    switch {
-    case callable.native   != nil: 
-        return callable.native.name
-    case callable.function != nil: 
-        return callable.function.name
-    case callable.class    != nil:
-        return callable.class.name
+    switch v in callable {
+    case ^NativeFunction:
+        return v.name
+    case ^LoxFunction:
+        return v.name
+    case ^LoxClass:
+        return v.name
     case:
         return ""
     }
 }
 
 callable_get_token :: proc(callable: Callable) -> Token {
-    switch{
-    case callable.native   != nil: 
-        return native_function_get_token(callable.native)
-    case callable.function != nil: 
-        return lox_function_get_token(callable.function)
-    case callable.class    != nil:
-        return class_get_token(callable.class)
+    switch v in callable {
+    case ^NativeFunction: 
+        return native_function_get_token(v)
+    case ^LoxFunction: 
+        return lox_function_get_token(v)
+    case ^LoxClass:
+        return class_get_token(v)
     case:
         return Token{}
     }
@@ -98,13 +84,14 @@ callable_call :: proc(interp: ^Interpreter, token: Token, value: Value, argument
             break
         }
 
-        if callee.native != nil {
-            res = native_function_call(callee.native, interp, arguments)
-        } else if callee.function != nil {
-            res = lox_function_call(callee.function, interp, arguments)
-        } else if callee.class != nil {
-            res = class_new_instance(callee.class, interp, arguments)
-        } else {
+        switch v in callee {
+        case ^NativeFunction:
+            res = native_function_call(v, interp, arguments)
+        case ^LoxFunction:
+            res = lox_function_call(v, interp, arguments)
+        case ^LoxClass:
+            res = class_new_instance(v, interp, arguments)
+        case:
             report("Callable has no implementation.")
             res = OkResult{}
         }

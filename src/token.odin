@@ -33,16 +33,14 @@ Value :: union{
     Nil,
 }
 
-Void :: struct{}
-
-Number :: f64
-String :: string
+Number  :: f64
+String  :: string
 Boolean :: bool
-Nil :: struct{}
+Nil     :: struct{}
 
 Token :: struct{
-    type: TokenType,
-    line: int,
-    text: string,
-    value: Value,
+    type  : TokenType,
+    line  : int,
+    text  : string,
+    value : Value,
 }

@@ -4,17 +4,17 @@ import "core:fmt"
 import "core:container/queue"
 
 Resolver :: struct{
-    interp: ^Interpreter,
-    scopes: queue.Queue(map[string]bool),
-    currentFunction: FunctionType,
-    currentClass: ClassType,
+    interp          : ^Interpreter,
+    scopes          : queue.Queue(map[string]bool),
+    currentFunction : FunctionType,
+    currentClass    : ClassType,
 }
 
 new_resolver :: proc(interp: ^Interpreter) -> ^Resolver {
     resolver := new(Resolver)
-    resolver.interp = interp
-    resolver.currentFunction = FunctionType.None
-    resolver.currentClass = ClassType.None
+    resolver.interp          = interp
+    resolver.currentFunction = .None
+    resolver.currentClass    = .None
     queue.init(&resolver.scopes)
 
     return resolver
@@ -73,21 +73,21 @@ resolve_class_stmt :: proc(resolver: ^Resolver, class: Class) {
 
         resolve_begin_scope(resolver)
         resolve_define(resolver, Token{
-            type=TokenType.Super,
-            text="super",
+            type = .Super,
+            text = "super",
         })
     }
 
     resolve_begin_scope(resolver)
     resolve_define(resolver, Token{
-        type=TokenType.This,
-        text="this",
+        type = .This,
+        text = "this",
     })
 
     for method in class.methods {
         type := FunctionType.Method
         if method.name.text == "init" {
-            type = FunctionType.Initializer
+            type = .Initializer
         }
 
         resolve_function(resolver, method, type)
@@ -178,6 +178,7 @@ resolve_expr :: proc(resolver: ^Resolver, expr: ^Expr) {
     case Grouping:
         resolve_expr(resolver, v.expression)
     case Literal:
+        // do nothing
     case Logical:
         resolve_logical_expr(resolver, v)
     case Set:
@@ -207,11 +208,11 @@ resolve_this_expr :: proc(resolver: ^Resolver, this: This) {
 
 resolve_super_expr :: proc(resolver: ^Resolver, super: Super) {
     switch resolver.currentClass {
-    case ClassType.None:
+    case .None:
         error(super.keyword, "Can't use `super` outside of a class.")
-    case ClassType.Class:
+    case .Class:
         error(super.keyword, "Can't use `super` in a class with no superclass.")
-    case ClassType.Subclass:
+    case .Subclass:
         expr := new(Expr)
         expr^ = super 
 

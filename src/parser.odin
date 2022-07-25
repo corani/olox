@@ -26,26 +26,18 @@ parser_parse :: proc(parser: ^Parser) -> []^Stmt {
     }
 
     return statements[:]
-    /* expr, ok := parser_expression(parser) */
-    /* if !ok { */
-    /*     return nil */
-    /* } */
-
-    /* return expr */
 }
 
 parser_declaration :: proc(parser: ^Parser) -> ^Stmt {
-    using TokenType
-
     stmt: ^Stmt
     ok: bool
 
     switch {
-    case parser_match(parser, []TokenType{Class}):
+    case parser_match(parser, .Class):
         stmt, ok = parser_class_declaration(parser)
-    case parser_match(parser, []TokenType{Fun}):
+    case parser_match(parser, .Fun):
         stmt, ok = parser_function_declaration(parser, "function")
-    case parser_match(parser, []TokenType{Var}):
+    case parser_match(parser, .Var):
         stmt, ok = parser_var_declaration(parser)
     case:
         stmt, ok = parser_statement(parser)
@@ -61,16 +53,14 @@ parser_declaration :: proc(parser: ^Parser) -> ^Stmt {
 }
 
 parser_class_declaration :: proc(parser: ^Parser) -> (^Stmt, bool) {
-    using TokenType
-
-    name, ok := parser_consume(parser, Identifier, "Expect class name.")
+    name, ok := parser_consume(parser, .Identifier, "Expect class name.")
     if !ok {
         return nil, false
     }
 
     superclass: ^Variable
-    if parser_match(parser, []TokenType{Less}) {
-        name, ok := parser_consume(parser, Identifier, "Expect superclass name.")
+    if parser_match(parser, .Less) {
+        name, ok := parser_consume(parser, .Identifier, "Expect superclass name.")
         if !ok {
             return nil, false
         }
@@ -82,14 +72,14 @@ parser_class_declaration :: proc(parser: ^Parser) -> (^Stmt, bool) {
         }
     }
 
-    _, ok = parser_consume(parser, LeftBrace, "Expect '{' before class body.")
+    _, ok = parser_consume(parser, .LeftBrace, "Expect '{' before class body.")
     if !ok {
         return nil, false
     }
 
     methods: [dynamic]^Function
 
-    for !parser_check(parser, RightBrace) && !parser_is_at_end(parser) {
+    for !parser_check(parser, .RightBrace) && !parser_is_at_end(parser) {
         function, ok := parser_function_declaration(parser, "method")
         if !ok {
             return nil, false
@@ -104,7 +94,7 @@ parser_class_declaration :: proc(parser: ^Parser) -> (^Stmt, bool) {
         }
     }
 
-    _, ok = parser_consume(parser, RightBrace, "Expect '}' after class body.")
+    _, ok = parser_consume(parser, .RightBrace, "Expect '}' after class body.")
     if !ok {
         return nil, false
     }
@@ -113,15 +103,13 @@ parser_class_declaration :: proc(parser: ^Parser) -> (^Stmt, bool) {
 }
 
 parser_function_declaration :: proc(parser: ^Parser, kind: string) -> (^Stmt, bool) {
-    using TokenType
-
-    name, ok := parser_consume(parser, Identifier, 
+    name, ok := parser_consume(parser, .Identifier, 
         fmt.tprintf("Expect %s name.", kind))
     if !ok {
         return nil, false
     }
 
-    _, ok = parser_consume(parser, LeftParen,
+    _, ok = parser_consume(parser, .LeftParen,
         fmt.tprintf("Expect '(' after %s name.", kind))
     if !ok {
         return nil, false
@@ -129,33 +117,33 @@ parser_function_declaration :: proc(parser: ^Parser, kind: string) -> (^Stmt, bo
 
     parameters: [dynamic]Token
 
-    if !parser_check(parser, RightParen) {
+    if !parser_check(parser, .RightParen) {
         for {
             if len(parameters) >= 255 {
                 error(parser_peek(parser), "Can't have more than 255 parameters.")
                 return nil, false
             }
 
-            name, ok := parser_consume(parser, Identifier, "Expect parameter name.")
+            name, ok := parser_consume(parser, .Identifier, "Expect parameter name.")
             if !ok {
                 return nil, false
             }
 
             append(&parameters, name)
 
-            if !parser_match(parser, []TokenType{Comma}) {
+            if !parser_match(parser, .Comma) {
                 break
             }
         }
     }
 
-    _, ok = parser_consume(parser, RightParen, 
+    _, ok = parser_consume(parser, .RightParen, 
         "Expect ')' after parameters.")
     if !ok {
         return nil, false
     }
 
-    _, ok = parser_consume(parser, LeftBrace,
+    _, ok = parser_consume(parser, .LeftBrace,
         fmt.tprintf("Expect '{' before %s body.", kind))
     if !ok {
         return nil, false
@@ -172,22 +160,20 @@ parser_function_declaration :: proc(parser: ^Parser, kind: string) -> (^Stmt, bo
 }
 
 parser_var_declaration :: proc(parser: ^Parser) -> (^Stmt, bool) {
-    using TokenType
-
-    name, ok := parser_consume(parser, Identifier, "Expect variable name")
+    name, ok := parser_consume(parser, .Identifier, "Expect variable name")
     if !ok {
         return nil, false
     }
 
     initializer: ^Expr
-    if parser_match(parser, []TokenType{Equal}) {
+    if parser_match(parser, .Equal) {
         initializer, ok = parser_expression(parser)
         if !ok {
             return nil, false
         }
     }
 
-    _, ok = parser_consume(parser, Semicolon, "Expect ';' after variable declaration.")
+    _, ok = parser_consume(parser, .Semicolon, "Expect ';' after variable declaration.")
     if !ok {
         return nil, false
     }
@@ -196,20 +182,18 @@ parser_var_declaration :: proc(parser: ^Parser) -> (^Stmt, bool) {
 }
 
 parser_statement :: proc(parser: ^Parser) -> (^Stmt, bool) {
-    using TokenType
-
     switch {
-    case parser_match(parser, []TokenType{For}):
+    case parser_match(parser, .For):
         return parser_for_statement(parser)
-    case parser_match(parser, []TokenType{If}):
+    case parser_match(parser, .If):
         return parser_if_statement(parser)
-    case parser_match(parser, []TokenType{Print}):
+    case parser_match(parser, .Print):
         return parser_print_statement(parser)
-    case parser_match(parser, []TokenType{Return}):
+    case parser_match(parser, .Return):
         return parser_return_statement(parser)
-    case parser_match(parser, []TokenType{While}):
+    case parser_match(parser, .While):
         return parser_while_statement(parser)
-    case parser_match(parser, []TokenType{LeftBrace}):
+    case parser_match(parser, .LeftBrace):
         return parser_block_statement(parser)
     }
 
@@ -217,9 +201,7 @@ parser_statement :: proc(parser: ^Parser) -> (^Stmt, bool) {
 }
 
 parser_for_statement :: proc(parser: ^Parser) -> (^Stmt, bool) {
-    using TokenType
-
-    _, ok := parser_consume(parser, LeftParen, "Expect '(' after 'if'.")
+    _, ok := parser_consume(parser, .LeftParen, "Expect '(' after 'if'.")
     if !ok {
         return nil, false
     }
@@ -229,9 +211,9 @@ parser_for_statement :: proc(parser: ^Parser) -> (^Stmt, bool) {
     increment: ^Expr
     body: ^Stmt
 
-    if parser_match(parser, []TokenType{Semicolon}) {
-        initializer = nil
-    } else if parser_match(parser, []TokenType{Var}) {
+    if parser_match(parser, .Semicolon) {
+        initializer, ok = nil, true
+    } else if parser_match(parser, .Var) {
         initializer, ok = parser_var_declaration(parser)
     } else {
         initializer, ok = parser_expression_statement(parser)
@@ -241,26 +223,26 @@ parser_for_statement :: proc(parser: ^Parser) -> (^Stmt, bool) {
         return nil, false
     }
 
-    if !parser_check(parser, Semicolon) {
+    if !parser_check(parser, .Semicolon) {
         condition, ok = parser_expression(parser)
         if !ok {
             return nil, false
         }
     }
 
-    _, ok = parser_consume(parser, Semicolon, "Expect ';' after loop condition.")
+    _, ok = parser_consume(parser, .Semicolon, "Expect ';' after loop condition.")
     if !ok {
         return nil, false
     }
 
-    if !parser_check(parser, RightParen) {
+    if !parser_check(parser, .RightParen) {
         increment, ok = parser_expression(parser)
         if !ok {
             return nil, false
         }
     }
 
-    _, ok = parser_consume(parser, RightParen, "Expect ')' after for clauses.")
+    _, ok = parser_consume(parser, .RightParen, "Expect ')' after for clauses.")
     if !ok {
         return nil, false
     }
@@ -278,8 +260,9 @@ parser_for_statement :: proc(parser: ^Parser) -> (^Stmt, bool) {
 
     if condition == nil {
         condition = new_literal(Token{
-            type=True,
-            value=true,
+            type  = .True,
+            text  = "true",
+            value = true,
         })
     }
 
@@ -296,9 +279,7 @@ parser_for_statement :: proc(parser: ^Parser) -> (^Stmt, bool) {
 }
 
 parser_if_statement :: proc(parser: ^Parser) -> (^Stmt, bool) {
-    using TokenType
-
-    if _, ok := parser_consume(parser, LeftParen, "Expect '(' after 'if'."); !ok {
+    if _, ok := parser_consume(parser, .LeftParen, "Expect '(' after 'if'."); !ok {
         return nil, false
     }
 
@@ -307,7 +288,7 @@ parser_if_statement :: proc(parser: ^Parser) -> (^Stmt, bool) {
         return nil, false
     }
 
-    if _, ok := parser_consume(parser, RightParen, "Expect ')' after if condition."); !ok {
+    if _, ok := parser_consume(parser, .RightParen, "Expect ')' after if condition."); !ok {
         return nil, false
     }
 
@@ -319,7 +300,7 @@ parser_if_statement :: proc(parser: ^Parser) -> (^Stmt, bool) {
         return nil, false
     }
 
-    if parser_match(parser, []TokenType{Else}) {
+    if parser_match(parser, .Else) {
         elseBranch, ok = parser_statement(parser)
         if !ok {
             return nil, false
@@ -330,9 +311,7 @@ parser_if_statement :: proc(parser: ^Parser) -> (^Stmt, bool) {
 }
 
 parser_while_statement :: proc(parser: ^Parser) -> (^Stmt, bool) {
-    using TokenType
-
-    if _, ok := parser_consume(parser, LeftParen, "Expect '(' after 'while'."); !ok {
+    if _, ok := parser_consume(parser, .LeftParen, "Expect '(' after 'while'."); !ok {
         return nil, false
     }
 
@@ -341,7 +320,7 @@ parser_while_statement :: proc(parser: ^Parser) -> (^Stmt, bool) {
         return nil, false
     }
 
-    if _, ok := parser_consume(parser, RightParen, "Expect ')' after while condition."); !ok {
+    if _, ok := parser_consume(parser, .RightParen, "Expect ')' after while condition."); !ok {
         return nil, false
     }
 
@@ -355,14 +334,12 @@ parser_while_statement :: proc(parser: ^Parser) -> (^Stmt, bool) {
 }
 
 parser_print_statement :: proc(parser: ^Parser) -> (^Stmt, bool) {
-    using TokenType
-
     value, ok := parser_expression(parser)
     if !ok {
         return nil, false
     }
 
-    _, ok = parser_consume(parser, Semicolon, "Expect ';' after value.")
+    _, ok = parser_consume(parser, .Semicolon, "Expect ';' after value.")
     if !ok {
         return nil, false
     }
@@ -371,21 +348,19 @@ parser_print_statement :: proc(parser: ^Parser) -> (^Stmt, bool) {
 }
 
 parser_return_statement :: proc(parser: ^Parser) -> (^Stmt, bool) {
-    using TokenType
-
     keyword := parser_previous(parser)
 
     value: ^Expr
     ok: bool
 
-    if !parser_check(parser, Semicolon) {
+    if !parser_check(parser, .Semicolon) {
         value, ok = parser_expression(parser)
         if !ok {
             return nil, false
         }
     }
 
-    _, ok = parser_consume(parser, Semicolon, "Expect ';' after return value.")
+    _, ok = parser_consume(parser, .Semicolon, "Expect ';' after return value.")
     if !ok {
         return nil, false
     }
@@ -394,14 +369,12 @@ parser_return_statement :: proc(parser: ^Parser) -> (^Stmt, bool) {
 }
 
 parser_expression_statement :: proc(parser: ^Parser) -> (^Stmt, bool) {
-    using TokenType
-
     expr, ok := parser_expression(parser)
     if !ok {
         return nil, false
     }
 
-    _, ok = parser_consume(parser, Semicolon, "Expect ';' after value.")
+    _, ok = parser_consume(parser, .Semicolon, "Expect ';' after value.")
     if !ok {
         return nil, false
     }
@@ -419,11 +392,9 @@ parser_block_statement :: proc(parser: ^Parser) -> (^Stmt, bool) {
 }
 
 parser_block :: proc(parser: ^Parser) -> ([]^Stmt, bool) {
-    using TokenType
-
     statements: [dynamic]^Stmt
 
-    for !parser_check(parser, RightBrace) && !parser_is_at_end(parser) {
+    for !parser_check(parser, .RightBrace) && !parser_is_at_end(parser) {
         stmt := parser_declaration(parser)
         if stmt == nil {
             return nil, false
@@ -432,7 +403,7 @@ parser_block :: proc(parser: ^Parser) -> ([]^Stmt, bool) {
         append(&statements, stmt)
     }
 
-    _, ok := parser_consume(parser, RightBrace, "Expect '}' after block.")
+    _, ok := parser_consume(parser, .RightBrace, "Expect '}' after block.")
     if !ok {
         return nil, false
     }
@@ -445,14 +416,12 @@ parser_expression :: proc(parser: ^Parser) -> (^Expr, bool) {
 }
 
 parser_assignment :: proc(parser: ^Parser) -> (^Expr, bool) {
-    using TokenType
-
     expr, ok := parser_or(parser)
     if !ok {
         return nil, false
     }
 
-    if parser_match(parser, []TokenType{Equal}) {
+    if parser_match(parser, .Equal) {
         equals := parser_previous(parser)
         value, ok := parser_assignment(parser)
         if !ok {
@@ -473,14 +442,12 @@ parser_assignment :: proc(parser: ^Parser) -> (^Expr, bool) {
 }
 
 parser_or :: proc(parser: ^Parser) -> (^Expr, bool) {
-    using TokenType
-
     expr, ok := parser_equality(parser)
     if !ok {
         return nil, false
     }
 
-    for parser_match(parser, []TokenType{Or}) {
+    for parser_match(parser, .Or) {
         operator := parser_previous(parser)
 
         right, ok := parser_equality(parser)
@@ -495,14 +462,12 @@ parser_or :: proc(parser: ^Parser) -> (^Expr, bool) {
 }
 
 parser_and :: proc(parser: ^Parser) -> (^Expr, bool) {
-    using TokenType
-
     expr, ok := parser_equality(parser)
     if !ok {
         return nil, false
     }
 
-    for parser_match(parser, []TokenType{And}) {
+    for parser_match(parser, .And) {
         operator := parser_previous(parser)
 
         right, ok := parser_equality(parser)
@@ -517,14 +482,12 @@ parser_and :: proc(parser: ^Parser) -> (^Expr, bool) {
 }
 
 parser_equality :: proc(parser: ^Parser) -> (^Expr, bool) {
-    using TokenType
-
     expr, ok := parser_comparison(parser)
     if !ok {
         return nil, false
     }
 
-    for parser_match(parser, []TokenType{BangEqual, EqualEqual}) {
+    for parser_match_any(parser, []TokenType{.BangEqual, .EqualEqual}) {
         operator := parser_previous(parser)
 
         right, ok := parser_comparison(parser)
@@ -539,14 +502,12 @@ parser_equality :: proc(parser: ^Parser) -> (^Expr, bool) {
 }
 
 parser_comparison :: proc(parser: ^Parser) -> (^Expr, bool) {
-    using TokenType
-
     expr, ok := parser_term(parser)
     if !ok {
         return nil, false
     }
 
-    for parser_match(parser, []TokenType{Greater, GreaterEqual, Less, LessEqual}) {
+    for parser_match_any(parser, []TokenType{.Greater, .GreaterEqual, .Less, .LessEqual}) {
         operator := parser_previous(parser)
 
         right, ok := parser_term(parser)
@@ -561,14 +522,12 @@ parser_comparison :: proc(parser: ^Parser) -> (^Expr, bool) {
 }
 
 parser_term :: proc(parser: ^Parser) -> (^Expr, bool) {
-    using TokenType
-
     expr, ok := parser_factor(parser)
     if !ok {
         return nil, false
     }
 
-    for parser_match(parser, []TokenType{Minus, Plus}) {
+    for parser_match_any(parser, []TokenType{.Minus, .Plus}) {
         operator := parser_previous(parser)
 
         right, ok := parser_factor(parser)
@@ -583,14 +542,12 @@ parser_term :: proc(parser: ^Parser) -> (^Expr, bool) {
 }
 
 parser_factor :: proc(parser: ^Parser) -> (^Expr, bool) {
-    using TokenType
-
     expr, ok := parser_unary(parser)
     if !ok {
         return nil, false
     }
 
-    for parser_match(parser, []TokenType{Slash, Star}) {
+    for parser_match_any(parser, []TokenType{.Slash, .Star}) {
         operator := parser_previous(parser)
 
         right, ok := parser_unary(parser)
@@ -605,11 +562,9 @@ parser_factor :: proc(parser: ^Parser) -> (^Expr, bool) {
 }
 
 parser_unary :: proc(parser: ^Parser) -> (^Expr, bool) {
-    using TokenType
-
     expr: ^Expr
 
-    if parser_match(parser, []TokenType{Bang, Minus}) {
+    if parser_match_any(parser, []TokenType{.Bang, .Minus}) {
         operator := parser_previous(parser)
         right, ok := parser_unary(parser)
         if !ok {
@@ -630,8 +585,6 @@ parser_unary :: proc(parser: ^Parser) -> (^Expr, bool) {
 }
 
 parser_call :: proc(parser: ^Parser) -> (^Expr, bool) {
-    using TokenType
-
     expr, ok := parser_primary(parser)
     if !ok {
         return nil, false
@@ -639,13 +592,13 @@ parser_call :: proc(parser: ^Parser) -> (^Expr, bool) {
 
     for {
         switch {
-        case parser_match(parser, []TokenType{LeftParen}):
+        case parser_match(parser, .LeftParen):
             expr, ok = parser_finish_call(parser, expr)
             if !ok {
                 return nil, false
             }
-        case parser_match(parser, []TokenType{Dot}):
-            name, ok := parser_consume(parser, Identifier, "Expect property name after '.'.")
+        case parser_match(parser, .Dot):
+            name, ok := parser_consume(parser, .Identifier, "Expect property name after '.'.")
             if !ok {
                 return nil, false
             }
@@ -658,11 +611,9 @@ parser_call :: proc(parser: ^Parser) -> (^Expr, bool) {
 }
 
 parser_finish_call :: proc(parser: ^Parser, callee: ^Expr) -> (^Expr, bool) {
-    using TokenType
-
     arguments: [dynamic]^Expr
 
-    if !parser_check(parser, RightParen) {
+    if !parser_check(parser, .RightParen) {
         for {
             if len(arguments) >= 255 {
                 error(parser_peek(parser), "Can't have more than 255 arguments.")
@@ -675,13 +626,13 @@ parser_finish_call :: proc(parser: ^Parser, callee: ^Expr) -> (^Expr, bool) {
 
             append(&arguments, expr)
 
-            if !parser_match(parser, []TokenType{Comma}) {
+            if !parser_match(parser, .Comma) {
                 break
             }
         }
     }
 
-    paren, ok := parser_consume(parser, RightParen, "Expect ')' after arguments.")
+    paren, ok := parser_consume(parser, .RightParen, "Expect ')' after arguments.")
     if !ok {
         return nil, false
     }
@@ -690,46 +641,44 @@ parser_finish_call :: proc(parser: ^Parser, callee: ^Expr) -> (^Expr, bool) {
 }
 
 parser_primary :: proc(parser: ^Parser) -> (^Expr, bool) {
-    using TokenType
-
     expr: ^Expr
 
     switch {
-    case parser_check(parser, False):
+    case parser_check(parser, .False):
         expr = new_literal(parser_advance(parser))
-    case parser_check(parser, True):
+    case parser_check(parser, .True):
         expr = new_literal(parser_advance(parser))
-    case parser_check(parser, Nil):
+    case parser_check(parser, .Nil):
         expr = new_literal(parser_advance(parser))
-    case parser_check(parser, Number):
+    case parser_check(parser, .Number):
         expr = new_literal(parser_advance(parser))
-    case parser_check(parser, String):
+    case parser_check(parser, .String):
         expr = new_literal(parser_advance(parser))
-    case parser_check(parser, Super):
+    case parser_check(parser, .Super):
         keyword := parser_advance(parser)
-        if _, ok := parser_consume(parser, Dot, "Expect `.` after `super`."); !ok {
+        if _, ok := parser_consume(parser, .Dot, "Expect `.` after `super`."); !ok {
             return nil, false
         }
 
-        method, ok := parser_consume(parser, Identifier, "Expect superclass method name.")
+        method, ok := parser_consume(parser, .Identifier, "Expect superclass method name.")
         if !ok {
             return nil, false
         }
 
         expr = new_super(keyword, method)
-    case parser_check(parser, This):
+    case parser_check(parser, .This):
         expr = new_this(parser_advance(parser))
-    case parser_check(parser, Identifier):
+    case parser_check(parser, .Identifier):
         expr = new_variable(parser_advance(parser))
-    case parser_check(parser, LeftParen):
-        parser_consume(parser, LeftParen)
+    case parser_check(parser, .LeftParen):
+        parser_consume(parser, .LeftParen)
 
         inner, ok := parser_expression(parser)
         if !ok {
             return nil, false
         }
 
-        _, ok = parser_consume(parser, RightParen, "Expect ')' after expression.")
+        _, ok = parser_consume(parser, .RightParen, "Expect ')' after expression.")
         if !ok {
             return nil, false
         }
@@ -744,7 +693,17 @@ parser_primary :: proc(parser: ^Parser) -> (^Expr, bool) {
     return expr, true
 }
 
-parser_match :: proc(parser: ^Parser, types: []TokenType) -> bool {
+parser_match :: proc(parser: ^Parser, type: TokenType) -> bool {
+    if parser_check(parser, type) {
+        parser_advance(parser)
+
+        return true
+    }
+
+    return false
+}
+
+parser_match_any :: proc(parser: ^Parser, types: []TokenType) -> bool {
     for type in types {
         if parser_check(parser, type) {
             parser_advance(parser)
@@ -802,17 +761,15 @@ parser_error :: proc(parser: ^Parser, msg: string) {
 }
 
 parser_synchronize :: proc(parser: ^Parser) {
-    using TokenType
-
     parser_advance(parser)
 
     for !parser_is_at_end(parser) {
-        if parser_previous(parser).type == EOF {
+        if parser_previous(parser).type == .EOF {
             return
         }
 
         #partial switch parser_peek(parser).type {
-        case Class, Fun, Var, For, If, While, Print, Return:
+        case .Class, .Fun, .Var, .For, .If, .While, .Print, .Return:
             return
         }
 

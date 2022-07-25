@@ -3,22 +3,22 @@ package main
 import "core:strconv"
 
 keywords := map[string]TokenType{
-    "and"    = TokenType.And,
-    "class"  = TokenType.Class,
-    "else"   = TokenType.Else,
-    "false"  = TokenType.False,
-    "for"    = TokenType.For,
-    "fun"    = TokenType.Fun,
-    "if"     = TokenType.If,
-    "nil"    = TokenType.Nil,
-    "or"     = TokenType.Or,
-    "print"  = TokenType.Print,
-    "return" = TokenType.Return,
-    "super"  = TokenType.Super,
-    "this"   = TokenType.This,
-    "true"   = TokenType.True,
-    "var"    = TokenType.Var,
-    "while"  = TokenType.While,
+    "and"    = .And,
+    "class"  = .Class,
+    "else"   = .Else,
+    "false"  = .False,
+    "for"    = .For,
+    "fun"    = .Fun,
+    "if"     = .If,
+    "nil"    = .Nil,
+    "or"     = .Or,
+    "print"  = .Print,
+    "return" = .Return,
+    "super"  = .Super,
+    "this"   = .This,
+    "true"   = .True,
+    "var"    = .Var,
+    "while"  = .While,
 }
 
 Scanner :: struct{
@@ -43,8 +43,9 @@ scanner_tokens :: proc(scanner: ^Scanner) -> []Token {
     }
 
     append(&scanner.tokens, Token{
-        type=TokenType.EOF,
-        line=scanner.line,
+        type = TokenType.EOF,
+        text = "<eof>",
+        line = scanner.line,
     })
 
     return scanner.tokens[:]
@@ -52,39 +53,39 @@ scanner_tokens :: proc(scanner: ^Scanner) -> []Token {
 
 scanner_token :: proc(scanner: ^Scanner) {
     switch c := scanner_advance(scanner); c {
-    case '(': scanner_add_token(scanner, TokenType.LeftParen)
-    case ')': scanner_add_token(scanner, TokenType.RightParen)
-    case '{': scanner_add_token(scanner, TokenType.LeftBrace)
-    case '}': scanner_add_token(scanner, TokenType.RightBrace)
-    case '.': scanner_add_token(scanner, TokenType.Dot)
-    case ',': scanner_add_token(scanner, TokenType.Comma)
-    case '-': scanner_add_token(scanner, TokenType.Minus)
-    case '+': scanner_add_token(scanner, TokenType.Plus)
-    case ';': scanner_add_token(scanner, TokenType.Semicolon)
-    case '*': scanner_add_token(scanner, TokenType.Star)
+    case '(': scanner_add_token(scanner, .LeftParen)
+    case ')': scanner_add_token(scanner, .RightParen)
+    case '{': scanner_add_token(scanner, .LeftBrace)
+    case '}': scanner_add_token(scanner, .RightBrace)
+    case '.': scanner_add_token(scanner, .Dot)
+    case ',': scanner_add_token(scanner, .Comma)
+    case '-': scanner_add_token(scanner, .Minus)
+    case '+': scanner_add_token(scanner, .Plus)
+    case ';': scanner_add_token(scanner, .Semicolon)
+    case '*': scanner_add_token(scanner, .Star)
     case '!': 
         if scanner_match(scanner, '=') {
-            scanner_add_token(scanner, TokenType.BangEqual)
+            scanner_add_token(scanner, .BangEqual)
         } else {
-            scanner_add_token(scanner, TokenType.Bang)
+            scanner_add_token(scanner, .Bang)
         }
     case '=': 
         if scanner_match(scanner, '=') {
-            scanner_add_token(scanner, TokenType.EqualEqual)
+            scanner_add_token(scanner, .EqualEqual)
         } else {
-            scanner_add_token(scanner, TokenType.Equal)
+            scanner_add_token(scanner, .Equal)
         }
     case '<': 
         if scanner_match(scanner, '=') {
-            scanner_add_token(scanner, TokenType.LessEqual)
+            scanner_add_token(scanner, .LessEqual)
         } else {
-            scanner_add_token(scanner, TokenType.Less)
+            scanner_add_token(scanner, .Less)
         }
     case '>': 
         if scanner_match(scanner, '=') {
-            scanner_add_token(scanner, TokenType.GreaterEqual)
+            scanner_add_token(scanner, .GreaterEqual)
         } else {
-            scanner_add_token(scanner, TokenType.Greater)
+            scanner_add_token(scanner, .Greater)
         }
     case '/':
         if scanner_match(scanner, '/') {
@@ -92,7 +93,7 @@ scanner_token :: proc(scanner: ^Scanner) {
                 scanner_advance(scanner)
             }
         } else {
-            scanner_add_token(scanner, TokenType.Slash)
+            scanner_add_token(scanner, .Slash)
         }
     case ' ', '\r', '\t':
         // ignore whitespace
@@ -128,7 +129,7 @@ scanner_string :: proc(scanner: ^Scanner) {
 
     scanner_advance(scanner) // closing "
 
-    scanner_add_token(scanner, TokenType.String, scanner.source[scanner.start+1:scanner.current-1])
+    scanner_add_token(scanner, .String, scanner.source[scanner.start+1:scanner.current-1])
 }
 
 scanner_number :: proc(scanner: ^Scanner) {
@@ -145,7 +146,7 @@ scanner_number :: proc(scanner: ^Scanner) {
         }
     }
 
-    scanner_add_token(scanner, TokenType.Number)
+    scanner_add_token(scanner, .Number)
 }
 
 scanner_identifier :: proc(scanner: ^Scanner) {
@@ -158,7 +159,7 @@ scanner_identifier :: proc(scanner: ^Scanner) {
     if type, ok := keywords[text]; ok {
         scanner_add_token(scanner, type)
     } else {
-       scanner_add_token(scanner, TokenType.Identifier)
+       scanner_add_token(scanner, .Identifier)
     }
 }
 
@@ -203,32 +204,46 @@ scanner_add_token :: proc(scanner: ^Scanner, type: TokenType, text := "") {
     }
 
     #partial switch type {
-    case TokenType.String:
+    case .String:
         _value = _text
-    case TokenType.Number:
+    case .Number:
         _value, _ = strconv.parse_f64(_text)
-    case TokenType.True:
+    case .True:
         _value = true
-    case TokenType.False:
+    case .False:
         _value = false
-    case TokenType.Nil:
+    case .Nil:
         _value = Nil{}
     }
 
     append(&scanner.tokens, Token{
-        type   = type,
-        text   = _text,
-        value  = _value,
-        line   = scanner.line,
+        type  = type,
+        text  = _text,
+        value = _value,
+        line  = scanner.line,
     })
 }
 
 is_digit :: proc(c: u8) -> bool {
-    return c >= '0' && c <= '9';
+    switch c {
+    case '0'..='9':
+        return true
+    }
+
+    return false
 }
 
 is_alpha :: proc(c: u8) -> bool {
-    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_'
+    switch c {
+    case 'a'..='z':
+        return true
+    case 'A'..='Z':
+        return true
+    case '_':
+        return true
+    }
+
+    return false
 }
 
 is_alpha_numeric :: proc(c: u8) -> bool {

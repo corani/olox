@@ -61,7 +61,7 @@ run :: proc(data: string) {
     }
 
     interpreter := new_interpreter()
-    resolver := new_resolver(interpreter)
+    resolver    := new_resolver(interpreter)
 
     resolve(resolver, stmts)
     if hadError {
@@ -71,11 +71,12 @@ run :: proc(data: string) {
     interpret(interpreter, stmts)
 }
 
-hadError := false
+hadError        := false
 hadRuntimeError := false
 
 report :: proc(text: string, line := 0, file := "") {
     fmt.fprintf(os.stderr, "ERROR: %s:%d: %s\n", file, line, text)
+
     hadError = true
 }
 
@@ -89,5 +90,6 @@ error :: proc(token: Token, msg: string) {
 
 runtime_error :: proc(token: Token, msg: string) {
     fmt.fprintf(os.stderr, "ERROR: %d: %s\n", token.line, msg)
+
     hadRuntimeError = true
 }

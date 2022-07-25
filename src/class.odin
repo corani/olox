@@ -9,19 +9,19 @@ ClassType :: enum{
 }
 
 LoxClass :: struct{
-    class: ^Class,
-    super: ^LoxClass,
-    name: string,
-    arity: int,
-    methods: map[string]Callable,
+    class   : ^Class,
+    super   : ^LoxClass,
+    name    : string,
+    arity   : int,
+    methods : map[string]Callable,
 }
 
 new_lox_class :: proc(class: ^Class, super: ^LoxClass, methods: map[string]Callable) -> ^LoxClass {
     result := new(LoxClass)
-    result.class = class
-    result.super = super
-    result.name = fmt.tprintf("<class %s>", class.name.text)
-    result.arity = 0
+    result.class   = class
+    result.super   = super
+    result.name    = fmt.tprintf("<class %s>", class.name.text)
+    result.arity   = 0
     result.methods = methods
 
     init, ok := class_find_initializer(result)
@@ -34,8 +34,8 @@ new_lox_class :: proc(class: ^Class, super: ^LoxClass, methods: map[string]Calla
 
 class_find_initializer :: proc(class: ^LoxClass) -> (Callable, bool) {
     initToken := Token{
-        type=TokenType.Identifier,
-        text="init",
+        type = .Identifier,
+        text = "init",
     }
 
     return class_find_method(class, initToken)
@@ -71,15 +71,15 @@ class_get_token :: proc(class: ^LoxClass) -> Token {
 }
 
 Instance :: struct{
-    class: ^LoxClass,
-    name: string,
-    fields: map[string]Value,
+    class  : ^LoxClass,
+    name   : string,
+    fields : map[string]Value,
 }
 
 new_lox_instance :: proc(class: ^LoxClass) -> ^Instance {
     instance := new(Instance)
     instance.class = class
-    instance.name = fmt.tprintf("<instance %v>", class.name)
+    instance.name  = fmt.tprintf("<instance %v>", class.name)
 
     return instance
 }

@@ -4,17 +4,21 @@ import "core:strings"
 import "core:fmt"
 
 Interpreter :: struct {
-    globals: ^Environment,
-    environment: ^Environment,
-    locals: map[int]int,
+    globals     : ^Environment,
+    environment : ^Environment,
+    locals      : map[int]int,
 }
 
 new_interpreter :: proc() -> ^Interpreter {
     interp := new(Interpreter)
-    interp.globals = new_environment()
+    interp.globals     = new_environment()
     interp.environment = interp.globals
 
-    environment_define(interp.globals, Token{text="clock"}, new_callable_clock())
+    // native functions:
+    environment_define(interp.globals, Token{
+        text = "clock",
+        type = .Identifier,
+    }, new_callable_clock())
 
     return interp
 }
@@ -24,6 +28,7 @@ interpret :: proc(interp: ^Interpreter, stmts: []^Stmt) -> Result{
         res := interpret_stmt(interp, stmt)
         switch in res {
         case OkResult:
+            // continue
         case ErrorResult:
             return res
         case ReturnResult:
@@ -72,13 +77,15 @@ interpret_class_stmt :: proc(interp: ^Interpreter, v: Class) -> Result {
 
     if v.superclass != nil {
         super := interpret_variable_expr(interp, v.superclass^)
+
         #partial switch s in super {
         case Callable:
-            if s.class == nil {
+            #partial switch sc in s {
+            case ^LoxClass:
+                superclass = sc
+            case:
                 runtime_error(v.superclass.name, "Superclass must be a class.")
             }
-
-            superclass = s.class
         case:
             runtime_error(v.superclass.name, "Superclass must be a class.")
         }
@@ -89,7 +96,10 @@ interpret_class_stmt :: proc(interp: ^Interpreter, v: Class) -> Result {
 
     if superclass != nil {
         interp.environment = new_environment(enclosing)
-        environment_define(interp.environment, Token{text="super"}, superclass)
+        environment_define(interp.environment, Token{
+            text = "super",
+            type = .Identifier,
+        }, superclass)
     }
 
     decl := new(Class)
@@ -108,12 +118,14 @@ interpret_class_stmt :: proc(interp: ^Interpreter, v: Class) -> Result {
 
 interpret_class :: proc(interp: ^Interpreter, class: ^Class, super: ^LoxClass) -> Callable {
     methods: map[string]Callable
+
     for method in class.methods {
-        fn := new_callable_function(method, interp.environment, method.name.text == "init")
+        fn := new_lox_function(method, interp.environment, method.name.text == "init")
+
         methods[method.name.text] = fn
     }
 
-    return new_callable_class(class, super, methods)
+    return new_lox_class(class, super, methods)
 }
 
 interpret_expression_stmt :: proc(interp: ^Interpreter, v: Expression) -> Result {
@@ -126,15 +138,16 @@ interpret_function_stmt :: proc(interp: ^Interpreter, v: Function) -> Result {
     decl := new(Function)
     decl^ = v
 
-    function := new_callable_function(decl, interp.environment, false)
+    function := new_lox_function(decl, interp.environment, false)
 
-    environment_define(interp.environment, v.name, function)
+    environment_define(interp.environment, v.name, Callable(function))
 
     return OkResult{}
 }
 
 interpret_return_stmt :: proc(interp: ^Interpreter, v: Return) -> Result {
     value: Value
+
     if v.value != nil {
         value = interpret_expr(interp, v.value)
     }
@@ -146,6 +159,7 @@ interpret_return_stmt :: proc(interp: ^Interpreter, v: Return) -> Result {
 
 interpret_if_stmt :: proc(interp: ^Interpreter, v: If) -> Result {
     condition := interpret_expr(interp, v.condition)
+
     if interpret_is_truthy(condition) {
         return interpret_stmt(interp, v.thenBranch)
     } else if v.elseBranch != nil {
@@ -160,6 +174,7 @@ interpret_while_stmt :: proc(interp: ^Interpreter, while: While) -> Result {
         res := interpret_stmt(interp, while.body)
         switch in res {
         case OkResult:
+            // continue
         case ErrorResult:
             return res
         case ReturnResult:
@@ -243,9 +258,9 @@ interpret_unary_expr :: proc(interp: ^Interpreter, v: Unary) -> Value {
     right := interpret_expr(interp, v.right)
 
     #partial switch v.operator.type {
-    case TokenType.Minus:
+    case .Minus:
         return -interpret_assert_number(v.operator, right)
-    case TokenType.Bang:
+    case .Bang:
         return !interpret_is_truthy(right)
     }
 
@@ -258,31 +273,31 @@ interpret_binary_expr :: proc(interp: ^Interpreter, v: Binary) -> Value {
     right := interpret_expr(interp, v.right)
 
     #partial switch v.operator.type {
-    case TokenType.Greater:
+    case .Greater:
         l, r := interpret_assert_numbers(v.operator, left, right)
 
         return l > r
-    case TokenType.GreaterEqual:
+    case .GreaterEqual:
         l, r := interpret_assert_numbers(v.operator, left, right)
 
         return l >= r
-    case TokenType.Less:
+    case .Less:
         l, r := interpret_assert_numbers(v.operator, left, right)
 
         return l < r
-    case TokenType.LessEqual:
+    case .LessEqual:
         l, r := interpret_assert_numbers(v.operator, left, right)
 
         return l <= r
-    case TokenType.BangEqual:
+    case .BangEqual:
         return !interpret_is_equal(left, right)
-    case TokenType.EqualEqual:
+    case .EqualEqual:
         return interpret_is_equal(left, right)
-    case TokenType.Minus:
+    case .Minus:
         l, r := interpret_assert_numbers(v.operator, left, right)
 
         return l - r
-    case TokenType.Plus:
+    case .Plus:
         #partial switch in left {
         case Number:
             l, r := interpret_assert_numbers(v.operator, left, right)
@@ -304,11 +319,11 @@ interpret_binary_expr :: proc(interp: ^Interpreter, v: Binary) -> Value {
         runtime_error(v.operator, "Operands must be two numbers or two strings.")
 
         return Nil{}
-    case TokenType.Slash:
+    case .Slash:
         l, r := interpret_assert_numbers(v.operator, left, right)
 
         return l / r
-    case TokenType.Star:
+    case .Star:
         l, r := interpret_assert_numbers(v.operator, left, right)
 
         return l * r
@@ -330,7 +345,7 @@ interpret_call_expr :: proc(interp: ^Interpreter, call: Call) -> Value {
 
 interpret_get_expr :: proc(interp: ^Interpreter, get: Get) -> Value {
     object := interpret_expr(interp, get.object)
-    value : Value = Nil{}
+    value  := Value(Nil{}) 
 
     #partial switch instance in object {
     case ^Instance:
@@ -344,7 +359,7 @@ interpret_get_expr :: proc(interp: ^Interpreter, get: Get) -> Value {
 
 interpret_set_expr :: proc(interp: ^Interpreter, set: Set) -> Value {
     object := interpret_expr(interp, set.object)
-    value := interpret_expr(interp, set.value)
+    value  := interpret_expr(interp, set.value)
 
     #partial switch instance in object {
     case ^Instance:
@@ -359,8 +374,8 @@ interpret_set_expr :: proc(interp: ^Interpreter, set: Set) -> Value {
 interpret_super_expr :: proc(interp: ^Interpreter, super: Super) -> Value {
     depth := interp.locals[super.id]
 
-    superclass: ^LoxClass
-    object: ^Instance
+    superclass : ^LoxClass
+    object     : ^Instance
 
     #partial switch v in environment_get_at(interp.environment, super.keyword, depth) {
     case ^LoxClass:
@@ -369,7 +384,10 @@ interpret_super_expr :: proc(interp: ^Interpreter, super: Super) -> Value {
         return Nil{}
     }
 
-    #partial switch v in environment_get_at(interp.environment, Token{text="this"},depth-1) {
+    #partial switch v in environment_get_at(interp.environment, Token{
+        type = .Identifier,
+        text = "this",
+    }, depth-1) {
     case ^Instance:
         object = v
     case:
@@ -468,10 +486,7 @@ interpret_is_equal :: proc(left, right: Value) -> bool {
             return true
         }
     case Callable:
-        #partial switch r in right {
-        case Callable:
-            return l.native == r.native
-        }
+        // TODO(daniel): implementation
     case ^LoxClass:
         // TODO(daniel): implementation
     case ^Instance:
