@@ -186,7 +186,10 @@ interpret_while_stmt :: proc(interp: ^Interpreter, while: While) -> Result {
 }
 
 interpret_block_stmt :: proc(interp: ^Interpreter, v: Block) -> Result {
-    return interpret_block(interp, v.statements[:], new_environment(interp.environment))
+    environment := new_environment(interp.environment)
+    defer environment_delete(environment)
+
+    return interpret_block(interp, v.statements[:], environment)
 }
 
 interpret_block :: proc(interp: ^Interpreter, body: []^Stmt, environment: ^Environment) -> Result {
@@ -232,7 +235,7 @@ interpret_expr :: proc(interp: ^Interpreter, expr: ^Expr) -> Value {
     case Super:
         return interpret_super_expr(interp, v)
     case This:
-        return interpret_lookup_variable(interp, v.keyword, expr)
+        return interpret_lookup_variable(interp, v.keyword, -1)
     case Unary:
         return interpret_unary_expr(interp, v)
     case Variable:
@@ -339,6 +342,7 @@ interpret_call_expr :: proc(interp: ^Interpreter, call: Call) -> Value {
     for argument in call.arguments {
         append(&arguments, interpret_expr(interp, argument))
     }
+    defer delete(arguments)
 
     return callable_call(interp, call.paren, callee, arguments[:])
 }
@@ -405,11 +409,7 @@ interpret_super_expr :: proc(interp: ^Interpreter, super: Super) -> Value {
 }
 
 interpret_variable_expr :: proc(interp: ^Interpreter, v: Variable) -> Value {
-    // TODO(daniel): there's got to be a better way. Casting doesn't work...
-    expr := new(Expr)
-    expr^ = v
-
-    return interpret_lookup_variable(interp, v.name, expr)
+    return interpret_lookup_variable(interp, v.name, v.id)
 }
 
 interpret_logical_expr :: proc(interp: ^Interpreter, v: Logical) -> Value {
@@ -443,16 +443,7 @@ interpret_resolve :: proc(interp: ^Interpreter, expr: ^Expr, depth: int) {
     }
 }
 
-interpret_lookup_variable :: proc(interp: ^Interpreter, name: Token, expr: ^Expr) -> Value{
-    id := -1
-
-    #partial switch v in expr {
-    case Assign:
-        id = v.id
-    case Variable:
-        id = v.id
-    }
-
+interpret_lookup_variable :: proc(interp: ^Interpreter, name: Token, id: int) -> Value{
     if id >= 0 {
         depth, ok := interp.locals[id]
         if ok {

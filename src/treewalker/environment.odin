@@ -14,6 +14,11 @@ new_environment :: proc(enclosing: ^Environment = nil) -> ^Environment{
     return environment
 }
 
+environment_delete :: proc(environment: ^Environment) {
+    delete(environment.values)
+    free(environment)
+}
+
 environment_define :: proc(environment: ^Environment, name: Token, value: Value) {
     environment.values[name.text] = value
 }

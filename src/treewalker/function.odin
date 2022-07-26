@@ -30,6 +30,7 @@ new_lox_function :: proc(decl: ^Function, closure: ^Environment, isInitializer: 
 
 lox_function_call :: proc(function: ^LoxFunction, interp: ^Interpreter, arguments: []Value) -> Result {
     environment := new_environment(function.closure)
+    defer environment_delete(environment)
 
     for i := 0; i < function.arity; i += 1 {
         environment_define(environment, function.decl.params[i], arguments[i])

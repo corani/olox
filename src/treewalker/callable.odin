@@ -23,6 +23,7 @@ callable_bind :: proc(callable: Callable, instance: ^Instance) -> Callable {
     #partial switch fn in callable {
     case ^LoxFunction:
         environment := new_environment(fn.closure)
+
         environment_define(environment, Token{
             type = .This,
             text = "this",

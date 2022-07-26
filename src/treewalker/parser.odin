@@ -78,6 +78,7 @@ parser_class_declaration :: proc(parser: ^Parser) -> (^Stmt, bool) {
     }
 
     methods: [dynamic]^Function
+    defer delete(methods)
 
     for !parser_check(parser, .RightBrace) && !parser_is_at_end(parser) {
         function, ok := parser_function_declaration(parser, "method")
@@ -116,6 +117,7 @@ parser_function_declaration :: proc(parser: ^Parser, kind: string) -> (^Stmt, bo
     }
 
     parameters: [dynamic]Token
+    defer delete(parameters)
 
     if !parser_check(parser, .RightParen) {
         for {
@@ -155,6 +157,8 @@ parser_function_declaration :: proc(parser: ^Parser, kind: string) -> (^Stmt, bo
     if !ok {
         return nil, false
     }
+
+    defer delete(body)
 
     return new_function(name, parameters[:], body), true
 }
@@ -388,6 +392,8 @@ parser_block_statement :: proc(parser: ^Parser) -> (^Stmt, bool) {
         return nil, false
     }
 
+    defer delete(body)
+
     return new_block(body), true
 }
 
@@ -612,6 +618,7 @@ parser_call :: proc(parser: ^Parser) -> (^Expr, bool) {
 
 parser_finish_call :: proc(parser: ^Parser, callee: ^Expr) -> (^Expr, bool) {
     arguments: [dynamic]^Expr
+    defer delete(arguments)
 
     if !parser_check(parser, .RightParen) {
         for {
