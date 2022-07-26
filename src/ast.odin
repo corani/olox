@@ -9,6 +9,13 @@ new_ast_id :: proc() -> int {
     return result
 }
 
+slice_to_dynamic :: proc(I: []$N) -> [dynamic]N {
+    res := make([dynamic]N, len(I))
+    copy(res[:], I[:])
+
+    return res
+}
+
 Expr :: union{
     Assign,
     Binary,
@@ -69,16 +76,10 @@ Call :: struct{
 }
 
 new_call :: proc(callee: ^Expr, paren: Token, arguments: []^Expr) -> ^Expr {
-    args: [dynamic]^Expr
-
-    for arg in arguments {
-        append(&args, arg)
-    }
-
     return new_expr(Call{
         callee    = callee,
         paren     = paren,
-        arguments = args,
+        arguments = slice_to_dynamic(arguments),
         id        = new_ast_id(),
     })
 }
@@ -230,14 +231,8 @@ Block :: struct{
 }
 
 new_block :: proc(statements: []^Stmt) -> ^Stmt {
-    stmts: [dynamic]^Stmt
-
-    for stmt in statements {
-        append(&stmts, stmt)
-    }
-
     return new_stmt(Block{
-        statements = stmts,
+        statements = slice_to_dynamic(statements),
         id         = new_ast_id(),
     })
 }
@@ -250,16 +245,10 @@ Class :: struct{
 }
 
 new_class :: proc(name: Token, superclass: ^Variable, methods: []^Function) -> ^Stmt {
-    fns: [dynamic]^Function
-
-    for m in methods {
-        append(&fns, m)
-    }
-
     return new_stmt(Class{
         name       = name,
         superclass = superclass,
-        methods    = fns,
+        methods    = slice_to_dynamic(methods),
         id         = new_ast_id(),
     })
 }
@@ -284,21 +273,10 @@ Function :: struct{
 }
 
 new_function :: proc(name: Token, params: []Token, body: []^Stmt) -> ^Stmt {
-    _params: [dynamic]Token
-    _stmts : [dynamic]^Stmt
-
-    for p in params{
-        append(&_params, p)
-    }
-
-    for s in body{
-        append(&_stmts, s)
-    }
-
     return new_stmt(Function{
         name   = name,
-        params = _params,
-        body   = _stmts,
+        params = slice_to_dynamic(params),
+        body   = slice_to_dynamic(body),
         id     = new_ast_id(),
     })
 }
