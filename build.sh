@@ -2,4 +2,4 @@
 set -xe
 
 mkdir -p bin
-odin build src/ -out:bin/olox 
+odin build src/treewalker/ -out:bin/olox-treewalker
