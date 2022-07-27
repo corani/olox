@@ -2,6 +2,11 @@ package main
 
 OpCode :: enum u8 {
     Constant,
+    Add,
+    Subtract,
+    Multiply,
+    Divide,
+    Negate,
     Return,
 }
 
