@@ -5,7 +5,7 @@ import "core:os"
 
 main :: proc() {
     if len(os.args) > 2 {
-        fmt.println("Usage: olox [script]")
+        fmt.printf("Usage: %s [script]\n", os.args[0])
         os.exit(64)
     } else if len(os.args) == 2 {
         runFile(os.args[1])

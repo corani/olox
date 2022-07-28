@@ -9,34 +9,48 @@ StackMax            :: 1024
 main :: proc() {
     vm_init(&vm)
 
-    chunk: Chunk
-    chunk_init(&chunk)
+    switch len(os.args) {
+    case 1:
+        repl(&vm)
+    case 2:
+        run_file(&vm, os.args[1])
+    case:
+        fmt.eprintf("Usage: %s [path]\n", os.args[0])
+        os.exit(64)
+    }
 
-    constant := chunk_add_constant(&chunk, Value(1.2))
-    chunk_append_op(&chunk, .Constant, 123)
-    chunk_append_u8(&chunk, constant, 123)
-
-    constant = chunk_add_constant(&chunk, Value(3.4))
-    chunk_append_op(&chunk, .Constant, 123)
-    chunk_append_u8(&chunk, constant, 123)
-
-    chunk_append_op(&chunk, .Add, 123)
-
-    constant = chunk_add_constant(&chunk, Value(5.6))
-    chunk_append_op(&chunk, .Constant, 123)
-    chunk_append_u8(&chunk, constant, 123)
-
-    chunk_append_op(&chunk, .Divide, 123)
-    chunk_append_op(&chunk, .Negate, 123)
-
-    chunk_append_op(&chunk, .Return, 123)
-
-    chunk_disassemble(&chunk, "test chunk")
-
-    vm_interpret(&vm, &chunk)
-
-    chunk_free(&chunk)
     vm_free(&vm)
+}
 
-    os.exit(0)
+repl :: proc(vm: ^VM) {
+    data: [1024]byte;
+
+    for {
+        fmt.print("> ")
+
+        if n, _ := os.read(os.stdin, data[:]); n < 0 {
+            fmt.println()
+
+            break
+        } else {
+            _ = vm_interpret(vm, string(data[:n]))
+        }
+    }
+}
+
+run_file :: proc(vm: ^VM, path: string) {
+    bytes, ok := os.read_entire_file_from_filename(path)
+    if !ok {
+        fmt.eprintf("ERROR: Could not read file: %s.\n", path)
+        os.exit(74)
+    }
+
+    switch vm_interpret(vm, string(bytes)) {
+    case .CompileError:
+        os.exit(65)
+    case .RuntimeError:
+        os.exit(70)
+    case .Ok:
+        return
+    }
 }

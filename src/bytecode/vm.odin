@@ -50,11 +50,10 @@ vm_stack_print :: proc(vm: ^VM) {
     fmt.println()
 }
 
-vm_interpret :: proc(vm: ^VM, chunk: ^Chunk) -> InterpretResult {
-    vm.chunk = chunk
-    vm.ip    = 0
+vm_interpret :: proc(vm: ^VM, source: string) -> InterpretResult {
+    compile(source)
 
-    return vm_run(vm)
+    return .Ok
 }
 
 vm_run :: proc(vm: ^VM) -> InterpretResult {
