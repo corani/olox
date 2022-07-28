@@ -19,9 +19,24 @@ chunk_disassemble_instruction :: proc(chunk: ^Chunk, offset: int) -> int {
         fmt.printf("%4d ", chunk.lines[offset])
     }
 
+    // TODO(daniel): print the opcode directly
     switch opcode := OpCode(chunk.code[offset]); opcode {
+    case .Return:
+        return simple_instruction("OP_RETURN", offset)
     case .Constant:
         return constant_instruction("OP_CONSTANT", chunk, offset)
+    case .False:
+        return simple_instruction("OP_FALSE", offset)
+    case .Equal:
+        return simple_instruction("OP_EQUAL", offset)
+    case .Greater:
+        return simple_instruction("OP_GREATER", offset)
+    case .Less:
+        return simple_instruction("OP_LESS", offset)
+    case .True:
+        return simple_instruction("OP_TRUE", offset)
+    case .Nil:
+        return simple_instruction("OP_NIL", offset)
     case .Add:
         return simple_instruction("OP_ADD", offset)
     case .Subtract:
@@ -30,10 +45,10 @@ chunk_disassemble_instruction :: proc(chunk: ^Chunk, offset: int) -> int {
         return simple_instruction("OP_MULTIPLY", offset)
     case .Divide:
         return simple_instruction("OP_DIVIDE", offset)
+    case .Not:
+        return simple_instruction("OP_NOT", offset)
     case .Negate:
         return simple_instruction("OP_NEGATE", offset)
-    case .Return:
-        return simple_instruction("OP_RETURN", offset)
     case:
         fmt.printf("Unknown opcode %d\n", opcode)
         return offset + 1

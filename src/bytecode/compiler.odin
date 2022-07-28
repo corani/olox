@@ -92,6 +92,19 @@ compiler_compile_number :: proc(compiler: ^Compiler) {
     compiler_emit_constant(compiler, Value(value))
 }
 
+compiler_compile_literal :: proc(compiler: ^Compiler) {
+    #partial switch compiler.parser.previous.type {
+    case .False:
+        compiler_emit_opcode(compiler, .False)
+    case .True:
+        compiler_emit_opcode(compiler, .True)
+    case .Nil:
+        compiler_emit_opcode(compiler, .Nil)
+    case:
+        panic("unreachable")
+    }
+}
+
 compiler_compile_unary :: proc(compiler: ^Compiler) {
     operator := compiler.parser.previous
 
@@ -100,6 +113,8 @@ compiler_compile_unary :: proc(compiler: ^Compiler) {
 
     // Emit the operator instruction.
     #partial switch operator.type {
+    case .Bang:
+        compiler_emit_opcode(compiler, .Not)
     case .Minus:
         compiler_emit_opcode(compiler, .Negate)
     case:
@@ -114,6 +129,21 @@ compiler_compile_binary :: proc(compiler: ^Compiler) {
     compiler_compile_precendence(compiler, Precedence(u8(rule.precedence) + 1))
 
     #partial switch operator.type {
+    case .BangEqual:
+        compiler_emit_opcode(compiler, .Equal)
+        compiler_emit_opcode(compiler, .Not)
+    case .EqualEqual:
+        compiler_emit_opcode(compiler, .Equal)
+    case .Greater:
+        compiler_emit_opcode(compiler, .Greater)
+    case .GreaterEqual:
+        compiler_emit_opcode(compiler, .Less)
+        compiler_emit_opcode(compiler, .Not)
+    case .Less:
+        compiler_emit_opcode(compiler, .Less)
+    case .LessEqual:
+        compiler_emit_opcode(compiler, .Greater)
+        compiler_emit_opcode(compiler, .Not)
     case .Plus:
         compiler_emit_opcode(compiler, .Add)
     case .Minus:

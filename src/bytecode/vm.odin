@@ -31,13 +31,32 @@ vm_stack_reset :: proc(vm: ^VM) {
 }
 
 vm_stack_push :: proc(vm: ^VM, value: Value) {
-    vm.stack[vm.stack_top] = value
-    vm.stack_top += 1
+    if vm.stack_top < StackMax {
+        vm.stack[vm.stack_top] = value
+        vm.stack_top += 1
+        return
+    }
+
+    vm_runtime_error(vm, "Stack overflow.")
 }
 
 vm_stack_pop :: proc(vm: ^VM) -> Value {
-    vm.stack_top -= 1
-    return vm.stack[vm.stack_top]
+    if vm.stack_top > 0 {
+        vm.stack_top -= 1
+        return vm.stack[vm.stack_top]
+    }
+
+    vm_runtime_error(vm, "Stack underflow.")
+    return Nil{}
+}
+
+vm_stack_peek :: proc(vm: ^VM, distance := 0) -> Value {
+    if vm.stack_top > distance {
+        return vm.stack[vm.stack_top - distance]
+    }
+
+    vm_runtime_error(vm, "Stack underflow.")
+    return Nil{}
 }
 
 vm_stack_print :: proc(vm: ^VM) {
@@ -48,6 +67,12 @@ vm_stack_print :: proc(vm: ^VM) {
         fmt.print(" ]")
     }
     fmt.println()
+}
+
+vm_runtime_error :: proc(vm: ^VM, message: string) {
+    line := vm.chunk.lines[vm.ip-1]
+    fmt.eprintf("ERROR: %d: %s\n", line, message)
+    vm_stack_reset(vm)
 }
 
 vm_interpret :: proc(vm: ^VM, source: string) -> InterpretResult {
@@ -75,29 +100,81 @@ vm_run :: proc(vm: ^VM) -> InterpretResult {
         switch instruction := vm_read_byte(vm); OpCode(instruction) {
         case .Return:
             return .Ok
-        case .Add:
-            vm_exec_binary(vm, proc(a, b: Value) -> Value { return a + b })
-        case .Subtract:
-            vm_exec_binary(vm, proc(a, b: Value) -> Value { return a - b })
-        case .Multiply:
-            vm_exec_binary(vm, proc(a, b: Value) -> Value { return a * b })
-        case .Divide:
-            vm_exec_binary(vm, proc(a, b: Value) -> Value { return a / b })
-        case .Negate:
-            vm_stack_push(vm, -vm_stack_pop(vm))
         case .Constant:
             constant := vm_read_constant(vm)
             vm_stack_push(vm, constant)
+        case .False:
+            vm_stack_push(vm, false)
+        case .True:
+            vm_stack_push(vm, true)
+        case .Nil:
+            vm_stack_push(vm, Nil{})
+        case .Equal:
+            b := vm_stack_pop(vm)
+            a := vm_stack_pop(vm)
+            vm_stack_push(vm, value_equal(a, b))
+        case .Greater:
+            if !vm_exec_binary(vm, proc(a, b: Value) -> Value { return a.(f64) > b.(f64) }) {
+                return .RuntimeError
+            }
+        case .Less:
+            if !vm_exec_binary(vm, proc(a, b: Value) -> Value { return a.(f64) < b.(f64) }) {
+                return .RuntimeError
+            }
+        case .Add:
+            if !vm_exec_binary(vm, proc(a, b: Value) -> Value { return a.(f64) + b.(f64) }) {
+                return .RuntimeError
+            }
+        case .Subtract:
+            if !vm_exec_binary(vm, proc(a, b: Value) -> Value { return a.(f64) - b.(f64) }) {
+                return .RuntimeError
+            }
+        case .Multiply:
+            if !vm_exec_binary(vm, proc(a, b: Value) -> Value { return a.(f64) * b.(f64) }) {
+                return .RuntimeError
+            }
+        case .Divide:
+            if !vm_exec_binary(vm, proc(a, b: Value) -> Value { return a.(f64) / b.(f64) }) {
+                return .RuntimeError
+            }
+        case .Not:
+            vm_stack_push(vm, is_falsey(vm_stack_pop(vm)))
+        case .Negate:
+            if !vm_exec_negate(vm) {
+                return .RuntimeError
+            }
         }
     }
 }
 
-vm_exec_binary :: proc(vm: ^VM, fn: proc(a, b: Value) -> Value) {
+vm_exec_negate :: proc(vm: ^VM) -> bool {
+    value, ok := vm_stack_pop(vm).(f64)
+    if !ok {
+        vm_runtime_error(vm, "Operand must be a number.")
+        return false
+    }
+
+    vm_stack_push(vm, Value(-value))
+    return true
+}
+
+vm_exec_binary :: proc(vm: ^VM, fn: proc(a, b: Value) -> Value) -> bool {
     // in this order!
-    b := vm_stack_pop(vm)
-    a := vm_stack_pop(vm)
+    b, okb := vm_stack_pop(vm).(f64)
+    if !okb {
+        vm_runtime_error(vm, "Operands must be numbers.")
+        return false
+    }
+
+    a, oka := vm_stack_pop(vm).(f64)
+    if !oka {
+        vm_runtime_error(vm, "Operands must be numbers.")
+        return false
+    }
 
     vm_stack_push(vm, fn(a, b))
+
+    return true
 }
 
 vm_read_constant :: proc(vm: ^VM) -> Value {
@@ -110,4 +187,17 @@ vm_read_byte :: proc(vm: ^VM) -> u8 {
     defer vm.ip += 1
 
     return vm.chunk.code[vm.ip]
+}
+
+is_falsey :: proc(value: Value) -> bool {
+    switch v in value {
+    case f64:
+        return false
+    case bool:
+        return !v
+    case Nil:
+        return true
+    case:
+        panic("unreachable")
+    }
 }
