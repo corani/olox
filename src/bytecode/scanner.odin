@@ -200,7 +200,10 @@ scanner_scan_string :: proc(scanner: ^Scanner) -> Token {
     // the closing quote.
     _ = scanner_advance(scanner)
 
-    return scanner_token_new(scanner, .String)
+    token := scanner_token_new(scanner, .String)
+    token.text = token.text[1:len(token.text)-1]
+
+    return token
 }
 
 is_digit :: proc(c: u8) -> bool {

@@ -1,12 +1,14 @@
 package main
 
 import "core:fmt"
+import "core:strings"
 
 VM :: struct {
     chunk    : ^Chunk,
     ip       : int,
     stack    : [StackMax]Value,
     stack_top: int,
+    objects  : ^Obj,
 }
 
 InterpretResult :: enum {
@@ -19,11 +21,20 @@ InterpretResult :: enum {
 vm: VM
 
 vm_init :: proc(vm: ^VM) {
-    // nothing, for now
+    vm_stack_reset(vm)
+    vm.objects = nil
 }
 
 vm_free :: proc(vm: ^VM) {
-    // nothing, for now
+    object := vm.objects
+
+    for object != nil {
+        next := object.next
+        object_free(object)
+        object = next
+    }
+
+    vm.objects = nil
 }
 
 vm_stack_reset :: proc(vm: ^VM) {
@@ -52,7 +63,8 @@ vm_stack_pop :: proc(vm: ^VM) -> Value {
 
 vm_stack_peek :: proc(vm: ^VM, distance := 0) -> Value {
     if vm.stack_top > distance {
-        return vm.stack[vm.stack_top - distance]
+        value := vm.stack[vm.stack_top - distance - 1]
+        return value
     }
 
     vm_runtime_error(vm, "Stack underflow.")
@@ -73,6 +85,23 @@ vm_runtime_error :: proc(vm: ^VM, message: string) {
     line := vm.chunk.lines[vm.ip-1]
     fmt.eprintf("ERROR: %d: %s\n", line, message)
     vm_stack_reset(vm)
+}
+
+vm_allocate_object :: proc(vm: ^VM, $T: typeid, type: ObjType) -> ^T {
+    object := new(T)
+    object.type = type
+    object.next = vm.objects
+
+    vm.objects = object
+
+    return object
+}
+
+vm_allocate_string :: proc(vm: ^VM, v: string) -> Value {
+    object := vm_allocate_object(vm, ObjString, .String)
+    object.chars = v
+
+    return cast(^Obj) object
 }
 
 vm_interpret :: proc(vm: ^VM, source: string) -> InterpretResult {
@@ -122,7 +151,21 @@ vm_run :: proc(vm: ^VM) -> InterpretResult {
                 return .RuntimeError
             }
         case .Add:
-            if !vm_exec_binary(vm, proc(a, b: Value) -> Value { return a.(f64) + b.(f64) }) {
+            vb := vm_stack_peek(vm, 0)
+            va := vm_stack_peek(vm, 1)
+
+            switch {
+            case value_is_string(va) && value_is_string(vb):
+                b := value_as_string(vm_stack_pop(vm))
+                a := value_as_string(vm_stack_pop(vm))
+                c := strings.concatenate([]string{ a, b })
+                vm_stack_push(vm, vm_allocate_string(vm, c))
+            case value_is_number(va) && value_is_number(vb):
+                b := value_as_number(vm_stack_pop(vm))
+                a := value_as_number(vm_stack_pop(vm))
+                vm_stack_push(vm, value_new_number(a+b))
+            case:
+                vm_runtime_error(vm, "Operands must be two numbers or two strings.")
                 return .RuntimeError
             }
         case .Subtract:
@@ -197,6 +240,13 @@ is_falsey :: proc(value: Value) -> bool {
         return !v
     case Nil:
         return true
+    case ^Obj:
+        switch v.type {
+        case .String:
+            return false
+        case:
+            panic("unreachable")
+        }
     case:
         panic("unreachable")
     }

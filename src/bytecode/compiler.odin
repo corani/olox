@@ -89,7 +89,12 @@ compiler_compile_number :: proc(compiler: ^Compiler) {
     // NOTE(daniel): during scanning we've already determined this is a valid float.
     value, _ := strconv.parse_f64(compiler.parser.previous.text)
 
-    compiler_emit_constant(compiler, Value(value))
+    compiler_emit_constant(compiler, value_new_number(value))
+}
+
+compiler_compile_string :: proc(compiler: ^Compiler) {
+    compiler_emit_constant(compiler, 
+        value_new_string(compiler.parser.previous.text))
 }
 
 compiler_compile_literal :: proc(compiler: ^Compiler) {
