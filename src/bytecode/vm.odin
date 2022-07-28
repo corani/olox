@@ -51,9 +51,18 @@ vm_stack_print :: proc(vm: ^VM) {
 }
 
 vm_interpret :: proc(vm: ^VM, source: string) -> InterpretResult {
-    compile(source)
+    chunk: Chunk
+    chunk_init(&chunk)
+    defer chunk_free(&chunk)
 
-    return .Ok
+    if !compile(&chunk, source) {
+        return .CompileError
+    }
+
+    vm.chunk = &chunk
+    vm.ip    = 0
+
+    return vm_run(vm)
 }
 
 vm_run :: proc(vm: ^VM) -> InterpretResult {

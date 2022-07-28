@@ -12,11 +12,10 @@ value_array_init :: proc(array: ^ValueArray) {
     // nothing, for now
 }
 
-value_array_append :: proc(array: ^ValueArray, value: Value) -> u8 {
+value_array_append :: proc(array: ^ValueArray, value: Value) -> int {
     append(&array.values, value)
 
-    // TODO(daniel): overflow?
-    return u8(len(array.values)-1)
+    return len(array.values)-1
 }
 
 value_array_free :: proc(array: ^ValueArray) {

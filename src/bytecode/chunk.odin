@@ -36,6 +36,6 @@ chunk_free :: proc(chunk: ^Chunk) {
     chunk_init(chunk)
 }
 
-chunk_add_constant :: proc(chunk: ^Chunk, value: Value) -> u8 {
+chunk_add_constant :: proc(chunk: ^Chunk, value: Value) -> int {
     return value_array_append(&chunk.constants, value)
 }

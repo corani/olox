@@ -4,6 +4,7 @@ import "core:fmt"
 import "core:os"
 
 DebugTraceExecution :: true
+DebugPrintCode      :: true
 StackMax            :: 1024
 
 main :: proc() {
@@ -54,3 +55,4 @@ run_file :: proc(vm: ^VM, path: string) {
         return
     }
 }
+
