@@ -5,6 +5,10 @@ OpCode :: enum u8 {
     Nil,
     True,
     False,
+    Pop,
+    DefineGlobal,
+    GetGlobal,
+    SetGlobal,
     Equal,
     Greater,
     Less,
@@ -14,6 +18,7 @@ OpCode :: enum u8 {
     Divide,
     Not,
     Negate,
+    Print,
     Return,
 }
 

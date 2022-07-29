@@ -30,7 +30,7 @@ ParseRule :: struct {
     precedence : Precedence,
 }
 
-ParseFn :: proc(^Compiler)
+ParseFn :: proc(^Compiler, bool)
 
 parse_rules := map[TokenType]ParseRule{
     .LeftParen      = { compiler_compile_grouping,  nil,                        .None },
@@ -52,7 +52,7 @@ parse_rules := map[TokenType]ParseRule{
     .GreaterEqual   = { nil,                        compiler_compile_binary,    .Comparison },
     .Less           = { nil,                        compiler_compile_binary,    .Comparison },
     .LessEqual      = { nil,                        compiler_compile_binary,    .Comparison },
-    .Identifier     = { nil,                        nil,                        .None },
+    .Identifier     = { compiler_compile_variable,  nil,                        .None },
     .String         = { compiler_compile_string,    nil,                        .None },
     .Number         = { compiler_compile_number,    nil,                        .None },
     .And            = { nil,                        nil,                        .None },
@@ -99,14 +99,14 @@ parser_error_at :: proc(parser: ^Parser, token: Token, message: string) {
 
     #partial switch token.type {
     case .Eof:
-        fmt.eprintf(" at end")
+        fmt.eprintf(" at end:")
     case .Error:
         // nothing
     case:
-        fmt.eprintf(" at '%s'", token.text)
+        fmt.eprintf(" at '%s':", token.text)
     }
 
-    fmt.eprintf(": %s\n", message)
+    fmt.eprintf(" %s\n", message)
 }
 
 parser_error :: proc(parser: ^Parser, message: string) {
@@ -115,6 +115,10 @@ parser_error :: proc(parser: ^Parser, message: string) {
 
 parser_error_at_current :: proc(parser: ^Parser, message: string) {
     parser_error_at(parser, parser.current, message)
+}
+
+parser_is_at_end :: proc(parser: ^Parser) -> bool {
+    return parser.current.type == .Eof
 }
 
 parser_advance :: proc(parser: ^Parser) {
@@ -132,11 +136,25 @@ parser_advance :: proc(parser: ^Parser) {
 }
 
 parser_consume :: proc(parser: ^Parser, type: TokenType, message: string) {
-    if parser.current.type == type {
+    if parser_check(parser, type) {
         parser_advance(parser)
 
         return
     }
 
     parser_error_at_current(parser, message)
+}
+
+parser_check :: proc(parser: ^Parser, type: TokenType) -> bool {
+    return parser.current.type == type
+}
+
+parser_match :: proc(parser: ^Parser, type: TokenType) -> bool {
+    if !parser_check(parser, type) {
+        return false
+    }
+
+    parser_advance(parser)
+
+    return true
 }

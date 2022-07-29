@@ -114,6 +114,7 @@ value_equal_obj :: proc(a, b: ^Obj) -> bool {
         stra := cast(^ObjString) a
         strb := cast(^ObjString) b
 
+        // TODO(daniel): should we intern strings to speed up comparisons?
         return stra.chars == strb.chars
     case:
         panic("unreachable")

@@ -9,6 +9,7 @@ VM :: struct {
     stack    : [StackMax]Value,
     stack_top: int,
     objects  : ^Obj,
+    globals  : map[string]Value,
 }
 
 InterpretResult :: enum {
@@ -127,8 +128,6 @@ vm_run :: proc(vm: ^VM) -> InterpretResult {
         }
 
         switch instruction := vm_read_byte(vm); OpCode(instruction) {
-        case .Return:
-            return .Ok
         case .Constant:
             constant := vm_read_constant(vm)
             vm_stack_push(vm, constant)
@@ -138,6 +137,28 @@ vm_run :: proc(vm: ^VM) -> InterpretResult {
             vm_stack_push(vm, true)
         case .Nil:
             vm_stack_push(vm, Nil{})
+        case .Pop:
+            vm_stack_pop(vm)
+        case .DefineGlobal:
+            name := vm_read_string(vm)
+            vm.globals[name] = vm_stack_pop(vm)
+        case .GetGlobal:
+            name := vm_read_string(vm)
+            if value, ok := vm.globals[name]; ok {
+                vm_stack_push(vm, value)
+            } else {
+                vm_runtime_error(vm, fmt.tprintf("Undefined variable '%s'.", name))
+                return .RuntimeError
+            }
+        case .SetGlobal:
+            name := vm_read_string(vm)
+            // TODO(daniel): do we need to free the old value?
+            if _, ok := vm.globals[name]; ok {
+                vm.globals[name] = vm_stack_peek(vm)
+            } else {
+                vm_runtime_error(vm, fmt.tprintf("Undefined variable '%s'.", name))
+                return .RuntimeError
+            }
         case .Equal:
             b := vm_stack_pop(vm)
             a := vm_stack_pop(vm)
@@ -186,6 +207,11 @@ vm_run :: proc(vm: ^VM) -> InterpretResult {
             if !vm_exec_negate(vm) {
                 return .RuntimeError
             }
+        case .Print:
+            value_print(vm_stack_pop(vm))
+            fmt.println()
+        case .Return:
+            return .Ok
         }
     }
 }
@@ -220,16 +246,20 @@ vm_exec_binary :: proc(vm: ^VM, fn: proc(a, b: Value) -> Value) -> bool {
     return true
 }
 
+vm_read_byte :: proc(vm: ^VM) -> u8 {
+    defer vm.ip += 1
+
+    return vm.chunk.code[vm.ip]
+}
+
 vm_read_constant :: proc(vm: ^VM) -> Value {
     index := vm_read_byte(vm)
 
     return vm.chunk.constants.values[index]
 }
 
-vm_read_byte :: proc(vm: ^VM) -> u8 {
-    defer vm.ip += 1
-
-    return vm.chunk.code[vm.ip]
+vm_read_string :: proc(vm: ^VM) -> string {
+    return value_as_string(vm_read_constant(vm))
 }
 
 is_falsey :: proc(value: Value) -> bool {
