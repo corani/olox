@@ -53,6 +53,7 @@ vm_stack_push :: proc(vm: ^VM, value: Value) {
 }
 
 vm_stack_pop :: proc(vm: ^VM) -> Value {
+    // TODO(daniel): when to free values that are popped?
     if vm.stack_top > 0 {
         vm.stack_top -= 1
         return vm.stack[vm.stack_top]
@@ -142,6 +143,9 @@ vm_run :: proc(vm: ^VM) -> InterpretResult {
         case .DefineGlobal:
             name := vm_read_string(vm)
             vm.globals[name] = vm_stack_pop(vm)
+        case .GetLocal:
+            slot := vm_read_byte(vm)
+            vm_stack_push(vm, vm.stack[slot])
         case .GetGlobal:
             name := vm_read_string(vm)
             if value, ok := vm.globals[name]; ok {
@@ -150,6 +154,9 @@ vm_run :: proc(vm: ^VM) -> InterpretResult {
                 vm_runtime_error(vm, fmt.tprintf("Undefined variable '%s'.", name))
                 return .RuntimeError
             }
+        case .SetLocal:
+            slot := vm_read_byte(vm)
+            vm.stack[slot] = vm_stack_peek(vm)
         case .SetGlobal:
             name := vm_read_string(vm)
             // TODO(daniel): do we need to free the old value?

@@ -9,6 +9,8 @@ OpCode :: enum u8 {
     DefineGlobal,
     GetGlobal,
     SetGlobal,
+    GetLocal,
+    SetLocal,
     Equal,
     Greater,
     Less,
