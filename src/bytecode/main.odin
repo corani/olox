@@ -3,7 +3,7 @@ package main
 import "core:fmt"
 import "core:os"
 
-DebugTraceExecution :: true
+DebugTraceExecution :: false
 DebugPrintCode      :: true
 StackMax            :: 1024
 

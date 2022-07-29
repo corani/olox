@@ -67,6 +67,8 @@ chunk_disassemble_instruction :: proc(chunk: ^Chunk, offset: int) -> int {
         return jump_instruction("OP_JUMP", 1, chunk, offset)
     case .JumpIfFalse:
         return jump_instruction("OP_JUMP_IF_FALSE", 1, chunk, offset)
+    case .Loop:
+        return jump_instruction("OP_LOOP", -1, chunk, offset)
     case:
         fmt.printf("Unknown opcode %d\n", opcode)
         return offset + 1

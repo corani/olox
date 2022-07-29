@@ -1,6 +1,13 @@
 var condition = 1;
 
-if (condition)
+if (condition != 1 or true)
     print "true";
 else
     print "false";
+
+var count = 5;
+
+while (count > 0) {
+    print count;
+    count = count - 1;
+}

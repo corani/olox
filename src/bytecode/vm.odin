@@ -225,6 +225,9 @@ vm_run :: proc(vm: ^VM) -> InterpretResult {
             if value_is_falsey(vm_stack_peek(vm, 0)) {
                 vm.ip += int(offset)
             }
+        case .Loop:
+            offset := vm_read_short(vm)
+            vm.ip -= int(offset)
         case .Return:
             return .Ok
         }
