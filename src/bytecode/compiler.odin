@@ -224,12 +224,12 @@ compiler_emit_jump :: proc(compiler: ^Compiler, opcode: OpCode) -> int {
     compiler_emit_byte(compiler, 0xff)
     compiler_emit_byte(compiler, 0xff)
 
-    return len(compiler.chunk.code) - 2
+    return chunk_size(compiler.chunk) - 2
 }
 
 compiler_patch_jump :: proc(compiler: ^Compiler, offset: int) {
     // `-2` to adjust for the bytecode for the jump offset itself
-    jump := len(compiler.chunk.code) - offset - 2
+    jump := chunk_size(compiler.chunk) - offset - 2
     if jump > 65535 { // @u16max
         parser_error(compiler.parser, "Too much code to jump over.")
     }
@@ -242,7 +242,7 @@ compiler_emit_loop :: proc(compiler: ^Compiler, loop_start: int) {
     compiler_emit_opcode(compiler, .Loop)
 
     // `+2` to adjust for the bytecode for the jump offset itself
-    offset := len(compiler.chunk.code) - loop_start + 2
+    offset := chunk_size(compiler.chunk) - loop_start + 2
     if offset > 65535 { // @u16max
         parser_error(compiler.parser, "Loop body too large.")
     }
@@ -446,11 +446,11 @@ compiler_compile_if_statement :: proc(compiler: ^Compiler) {
 }
 
 compiler_compile_while_statement :: proc(compiler: ^Compiler) {
-    loop_start := len(compiler.chunk.code)
+    loop_start := chunk_size(compiler.chunk)
 
-    parser_consume(compiler.parser, .LeftParen, "Expect '(' after 'if'.")
+    parser_consume(compiler.parser, .LeftParen, "Expect '(' after 'while'.")
     compiler_compile_expression(compiler)
-    parser_consume(compiler.parser, .RightParen, "Expect ')' after 'if' condition.")
+    parser_consume(compiler.parser, .RightParen, "Expect ')' after 'while' condition.")
 
     exit_jump := compiler_emit_jump(compiler, .JumpIfFalse)
     compiler_emit_opcode(compiler, .Pop)
@@ -460,6 +460,55 @@ compiler_compile_while_statement :: proc(compiler: ^Compiler) {
 
     compiler_patch_jump(compiler, exit_jump)
     compiler_emit_opcode(compiler, .Pop)
+}
+
+compiler_compile_for_statement :: proc(compiler: ^Compiler) {
+    compiler_scope_begin(compiler)
+    parser_consume(compiler.parser, .LeftParen, "Expect '(' after 'for'.")
+
+    switch {
+    case parser_match(compiler.parser, .Semicolon):
+        // no initializer.
+    case parser_match(compiler.parser, .Var):
+        compiler_compile_var_declaration(compiler)
+    case:
+        compiler_compile_expression_statement(compiler)
+    }
+
+    loop_start := chunk_size(compiler.chunk)
+    exit_jump  := -1
+
+    if !parser_match(compiler.parser, .Semicolon) {
+        compiler_compile_expression(compiler)
+        parser_consume(compiler.parser, .Semicolon, "Expect ';' after loop condition.")
+
+        // Jump out of the loop if the condition is false
+        exit_jump = compiler_emit_jump(compiler, .JumpIfFalse)
+        compiler_emit_opcode(compiler, .Pop) // condition
+    }
+
+    if !parser_match(compiler.parser, .RightParen) {
+        body_jump  := compiler_emit_jump(compiler, .Jump)
+        incr_start := chunk_size(compiler.chunk)
+
+        compiler_compile_expression(compiler)
+        compiler_emit_opcode(compiler, .Pop)
+        parser_consume(compiler.parser, .RightParen, "Expect ')' after for clauses.")
+
+        compiler_emit_loop(compiler, loop_start)
+        loop_start = incr_start;
+        compiler_patch_jump(compiler, body_jump)
+    }
+
+    compiler_compile_statement(compiler)
+    compiler_emit_loop(compiler, loop_start)
+
+    if exit_jump != -1 {
+        compiler_patch_jump(compiler, exit_jump)
+        compiler_emit_opcode(compiler, .Pop) // condition
+    }
+
+    compiler_scope_end(compiler)
 }
 
 compiler_compile_block_statement :: proc(compiler: ^Compiler) {
@@ -478,6 +527,8 @@ compiler_compile_statement :: proc(compiler: ^Compiler) {
         compiler_compile_if_statement(compiler)
     case parser_match(compiler.parser, .While):
         compiler_compile_while_statement(compiler)
+    case parser_match(compiler.parser, .For):
+        compiler_compile_for_statement(compiler)
     case parser_match(compiler.parser, .LeftBrace):
         compiler_scope_begin(compiler)
         compiler_compile_block_statement(compiler)

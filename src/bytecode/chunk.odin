@@ -46,6 +46,10 @@ chunk_append_op :: proc(chunk: ^Chunk, v: OpCode, line: int) {
     chunk_append_u8(chunk, u8(v), line)
 }
 
+chunk_size :: proc(chunk: ^Chunk) -> int {
+    return len(chunk.code)
+}
+
 chunk_free :: proc(chunk: ^Chunk) {
     delete(chunk.code)
     delete(chunk.lines)
