@@ -209,7 +209,7 @@ vm_run :: proc(vm: ^VM) -> InterpretResult {
                 return .RuntimeError
             }
         case .Not:
-            vm_stack_push(vm, is_falsey(vm_stack_pop(vm)))
+            vm_stack_push(vm, value_is_falsey(vm_stack_pop(vm)))
         case .Negate:
             if !vm_exec_negate(vm) {
                 return .RuntimeError
@@ -217,6 +217,14 @@ vm_run :: proc(vm: ^VM) -> InterpretResult {
         case .Print:
             value_print(vm_stack_pop(vm))
             fmt.println()
+        case .Jump:
+            offset := vm_read_short(vm)
+            vm.ip += int(offset)
+        case .JumpIfFalse:
+            offset := vm_read_short(vm)
+            if value_is_falsey(vm_stack_peek(vm, 0)) {
+                vm.ip += int(offset)
+            }
         case .Return:
             return .Ok
         }
@@ -259,6 +267,13 @@ vm_read_byte :: proc(vm: ^VM) -> u8 {
     return vm.chunk.code[vm.ip]
 }
 
+vm_read_short :: proc(vm: ^VM) -> u16 {
+    defer vm.ip += 2
+
+    // TODO(daniel): order?
+    return (u16(vm.chunk.code[vm.ip]) << 8) | u16(vm.chunk.code[vm.ip + 1])
+}
+
 vm_read_constant :: proc(vm: ^VM) -> Value {
     index := vm_read_byte(vm)
 
@@ -269,22 +284,3 @@ vm_read_string :: proc(vm: ^VM) -> string {
     return value_as_string(vm_read_constant(vm))
 }
 
-is_falsey :: proc(value: Value) -> bool {
-    switch v in value {
-    case f64:
-        return false
-    case bool:
-        return !v
-    case Nil:
-        return true
-    case ^Obj:
-        switch v.type {
-        case .String:
-            return false
-        case:
-            panic("unreachable")
-        }
-    case:
-        panic("unreachable")
-    }
-}

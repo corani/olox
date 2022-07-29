@@ -1,0 +1,6 @@
+var condition = 1;
+
+if (condition)
+    print "true";
+else
+    print "false";

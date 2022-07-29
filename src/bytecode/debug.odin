@@ -63,18 +63,20 @@ chunk_disassemble_instruction :: proc(chunk: ^Chunk, offset: int) -> int {
         return simple_instruction("OP_PRINT", offset)
     case .Return:
         return simple_instruction("OP_RETURN", offset)
+    case .Jump:
+        return jump_instruction("OP_JUMP", 1, chunk, offset)
+    case .JumpIfFalse:
+        return jump_instruction("OP_JUMP_IF_FALSE", 1, chunk, offset)
     case:
         fmt.printf("Unknown opcode %d\n", opcode)
         return offset + 1
     }
 }
 
-byte_instruction :: proc(name: string, chunk: ^Chunk, offset: int) -> int {
-    slot := chunk.code[offset+1]
+simple_instruction :: proc(name: string, offset: int) -> int {
+    fmt.printf("%s\n", name)
 
-    fmt.printf("%-16s %4d\n", name, slot);
-
-    return offset + 2;
+    return offset + 1
 }
 
 constant_instruction :: proc(name: string, chunk: ^Chunk, offset: int) -> int {
@@ -87,8 +89,18 @@ constant_instruction :: proc(name: string, chunk: ^Chunk, offset: int) -> int {
     return offset + 2
 }
 
-simple_instruction :: proc(name: string, offset: int) -> int {
-    fmt.printf("%s\n", name)
+byte_instruction :: proc(name: string, chunk: ^Chunk, offset: int) -> int {
+    slot := chunk.code[offset+1]
 
-    return offset + 1
+    fmt.printf("%-16s %4d\n", name, slot);
+
+    return offset + 2
+}
+
+jump_instruction :: proc(name: string, sign: int, chunk: ^Chunk, offset: int) -> int {
+    jump := int((u16(chunk.code[offset+1]) << 8) | u16(chunk.code[offset+2]))
+
+    fmt.printf("%-16s %4d -> %d\n", name, offset, offset + 3 + sign * jump)
+
+    return offset + 3
 }

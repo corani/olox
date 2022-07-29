@@ -156,6 +156,26 @@ value_as_number :: proc(v: Value) -> f64 {
     return v.(f64)
 }
 
+value_is_falsey :: proc(value: Value) -> bool {
+    switch v in value {
+    case f64:
+        return false
+    case bool:
+        return !v
+    case Nil:
+        return true
+    case ^Obj:
+        switch v.type {
+        case .String:
+            return false
+        case:
+            panic("unreachable")
+        }
+    case:
+        panic("unreachable")
+    }
+}
+
 object_free :: proc(object: ^Obj) {
     switch object.type {
     case .String:

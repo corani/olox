@@ -219,6 +219,26 @@ compiler_emit_constant :: proc(compiler: ^Compiler, value: Value) {
     compiler_emit_byte(compiler, constant)
 }
 
+compiler_emit_jump :: proc(compiler: ^Compiler, opcode: OpCode) -> int {
+    compiler_emit_byte(compiler, u8(opcode))
+    compiler_emit_byte(compiler, 0xff)
+    compiler_emit_byte(compiler, 0xff)
+
+    return len(compiler.chunk.code) - 2
+}
+
+compiler_patch_jump :: proc(compiler: ^Compiler, offset: int) {
+    // `-2` to adjust for the bytecode for the jump offset itself
+    jump := len(compiler.chunk.code) - offset - 2
+
+    if jump > 65535 { // @u16max
+        parser_error(compiler.parser, "Too much code to jump over.")
+    }
+
+    compiler.chunk.code[offset + 0] = u8((jump >> 8) & 0xff)
+    compiler.chunk.code[offset + 1] = u8( jump       & 0xff)
+}
+
 // ----- expressions ----------------------------------------------------------
  
 compiler_compile_grouping :: proc(compiler: ^Compiler, can_assign: bool) {
@@ -365,6 +385,33 @@ compiler_compile_expression_statement :: proc(compiler: ^Compiler) {
     compiler_emit_opcode(compiler, .Pop)
 }
 
+compiler_compile_print_statement :: proc(compiler: ^Compiler) {
+    compiler_compile_expression(compiler)
+    parser_consume(compiler.parser, .Semicolon, "Expect ';' after value.")
+    compiler_emit_opcode(compiler, .Print)
+}
+
+compiler_compile_if_statement :: proc(compiler: ^Compiler) {
+    parser_consume(compiler.parser, .LeftParen, "Expect '(' after 'if'.")
+    compiler_compile_expression(compiler)
+    parser_consume(compiler.parser, .RightParen, "Expect ')' after 'if' condition.")
+
+    then_jump := compiler_emit_jump(compiler, .JumpIfFalse)
+    compiler_emit_opcode(compiler, .Pop)
+
+    compiler_compile_statement(compiler)
+    else_jump := compiler_emit_jump(compiler, .Jump)
+
+    compiler_patch_jump(compiler, then_jump)
+    compiler_emit_opcode(compiler, .Pop)
+
+    if parser_match(compiler.parser, .Else) {
+        compiler_compile_statement(compiler)
+    }
+
+    compiler_patch_jump(compiler, else_jump)
+}
+
 compiler_compile_block_statement :: proc(compiler: ^Compiler) {
     for !parser_check(compiler.parser, .RightBrace) && !parser_check(compiler.parser, .Eof) {
         compiler_compile_declaration(compiler)
@@ -373,16 +420,12 @@ compiler_compile_block_statement :: proc(compiler: ^Compiler) {
     parser_consume(compiler.parser, .RightBrace, "Expect '}' after block.")
 }
 
-compiler_compile_print_statement :: proc(compiler: ^Compiler) {
-    compiler_compile_expression(compiler)
-    parser_consume(compiler.parser, .Semicolon, "Expect ';' after value.")
-    compiler_emit_opcode(compiler, .Print)
-}
-
 compiler_compile_statement :: proc(compiler: ^Compiler) {
     switch {
     case parser_match(compiler.parser, .Print):
         compiler_compile_print_statement(compiler)
+    case parser_match(compiler.parser, .If):
+        compiler_compile_if_statement(compiler)
     case parser_match(compiler.parser, .LeftBrace):
         compiler_scope_begin(compiler)
         compiler_compile_block_statement(compiler)
