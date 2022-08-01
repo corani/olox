@@ -12,6 +12,12 @@ VM :: struct {
     globals  : map[string]Value,
 }
 
+CallFrame :: struct {
+    function    : ^ObjFunction,
+    ip          : int,
+    stack_index : int,
+}
+
 InterpretResult :: enum {
     Ok,
     CompileError,
@@ -24,6 +30,9 @@ vm: VM
 vm_init :: proc(vm: ^VM) {
     vm_stack_reset(vm)
     vm.objects = nil
+
+    // NOTE(daniel): local dummy value for compiler function "<script>"
+    vm_stack_push(vm, Nil{}) 
 }
 
 vm_free :: proc(vm: ^VM) {
@@ -106,19 +115,30 @@ vm_allocate_string :: proc(vm: ^VM, v: string) -> Value {
     return cast(^Obj) object
 }
 
-vm_interpret :: proc(vm: ^VM, source: string) -> InterpretResult {
-    chunk: Chunk
-    chunk_init(&chunk)
-    defer chunk_free(&chunk)
+vm_allocate_function :: proc(vm: ^VM, name: string) -> Value {
+    object := vm_allocate_object(vm, ObjFunction, .Function)
+    object.arity = 0
+    object.name  = name
+    chunk_init(object.chunk)
 
-    if !compile(&chunk, source) {
+    return cast(^Obj) object
+
+}
+
+vm_interpret :: proc(vm: ^VM, source: string) -> InterpretResult {
+    function, ok := compile(source) 
+    if !ok {
         return .CompileError
     }
 
-    vm.chunk = &chunk
+    vm.chunk = function.chunk
     vm.ip    = 0
 
-    return vm_run(vm)
+    result := vm_run(vm)
+
+    object_free(function)
+
+    return result
 }
 
 vm_run :: proc(vm: ^VM) -> InterpretResult {
@@ -184,8 +204,8 @@ vm_run :: proc(vm: ^VM) -> InterpretResult {
 
             switch {
             case value_is_string(va) && value_is_string(vb):
-                b := value_as_string(vm_stack_pop(vm))
-                a := value_as_string(vm_stack_pop(vm))
+                b := value_as_string(vm_stack_pop(vm)).chars
+                a := value_as_string(vm_stack_pop(vm)).chars
                 c := strings.concatenate([]string{ a, b })
                 vm_stack_push(vm, vm_allocate_string(vm, c))
             case value_is_number(va) && value_is_number(vb):
@@ -284,6 +304,6 @@ vm_read_constant :: proc(vm: ^VM) -> Value {
 }
 
 vm_read_string :: proc(vm: ^VM) -> string {
-    return value_as_string(vm_read_constant(vm))
+    return value_as_string(vm_read_constant(vm)).chars
 }
 

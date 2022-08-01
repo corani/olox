@@ -54,7 +54,7 @@ chunk_free :: proc(chunk: ^Chunk) {
     delete(chunk.code)
     delete(chunk.lines)
     value_array_free(&chunk.constants)
-    chunk_init(chunk)
+    free(chunk)
 }
 
 chunk_add_constant :: proc(chunk: ^Chunk, value: Value) -> int {

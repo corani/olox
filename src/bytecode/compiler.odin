@@ -5,7 +5,8 @@ import "core:strconv"
 Compiler :: struct{
     scanner     : ^Scanner,
     parser      : ^Parser,
-    chunk       : ^Chunk,
+    function    : ^ObjFunction,
+    type        : FunctionType,
     locals      : [256]Local, // @u8max + 1
     local_count : int,
     scope_depth : int,
@@ -16,15 +17,24 @@ Local :: struct{
     depth : int,
 }
 
-compiler_init :: proc(compiler: ^Compiler) {
-    compiler.scanner     = nil
-    compiler.parser      = nil
-    compiler.chunk       = nil
-    compiler.local_count = 0
-    compiler.scope_depth = 0
+// TODO(daniel): move this to `object.odin` and add the type to `ObjFunction`?
+FunctionType :: enum {
+    Function,
+    Script,
 }
 
-compile :: proc(chunk: ^Chunk, source: string) -> bool{
+compiler_init :: proc(compiler: ^Compiler, type: FunctionType) {
+    compiler.scanner     = nil
+    compiler.parser      = nil
+    compiler.local_count = 0
+    compiler.scope_depth = 0
+    compiler.function    = value_new_function("<script>")
+    compiler.type        = type
+
+    compiler_make_local(compiler, Token{text="<script>"})
+}
+
+compile :: proc(source: string) -> (^ObjFunction, bool) {
     scanner : Scanner
     parser  : Parser
     compiler: Compiler
@@ -32,22 +42,30 @@ compile :: proc(chunk: ^Chunk, source: string) -> bool{
     scanner_init(&scanner, source)
     parser_init(&parser, &scanner)
 
-    compiler_init(&compiler)
+    compiler_init(&compiler, .Script)
     compiler.scanner = &scanner
     compiler.parser  = &parser
-    compiler.chunk   = chunk
 
     for !parser_match(compiler.parser, .Eof) {
         compiler_compile_declaration(&compiler)
     }
 
-    compiler_end(&compiler)
+    function := compiler_end(&compiler)
 
-    return !compiler.parser.had_error
+    if compiler.parser.had_error {
+        return nil, false
+    }
+
+    return function, true
+}
+
+compiler_current_chunk :: proc(compiler: ^Compiler) -> ^Chunk {
+    return compiler.function.chunk
 }
 
 compiler_make_constant :: proc(compiler: ^Compiler, value: Value) -> u8 {
-    constant :=  chunk_add_constant(compiler.chunk, value)
+    chunk := compiler_current_chunk(compiler)
+    constant :=  chunk_add_constant(chunk, value)
     
     if constant > 255 {     // @u8max
         parser_error(compiler.parser, "Too many constants in one chunk.")
@@ -147,14 +165,18 @@ compiler_define_variable :: proc(compiler: ^Compiler, global: u8) {
     compiler_emit_byte(compiler, global)
 }
 
-compiler_end :: proc(compiler: ^Compiler) {
+compiler_end :: proc(compiler: ^Compiler) -> ^ObjFunction {
+    chunk := compiler_current_chunk(compiler)
+
     compiler_emit_return(compiler)
 
     when DebugPrintCode {
         if !compiler.parser.had_error {
-            chunk_disassemble(compiler.chunk, "code")
+            chunk_disassemble(chunk, compiler.function.name)
         }
     }
+
+    return compiler.function
 }
 
 compiler_synchronize :: proc(compiler: ^Compiler) {
@@ -197,7 +219,9 @@ compiler_scope_end :: proc(compiler: ^Compiler) {
 // ----- emit bytecode --------------------------------------------------------
  
 compiler_emit_byte :: proc(compiler: ^Compiler, byte: u8) {
-    chunk_append_u8(compiler.chunk, byte, compiler.parser.previous.line)
+    chunk := compiler_current_chunk(compiler)
+
+    chunk_append_u8(chunk, byte, compiler.parser.previous.line)
 }
 
 compiler_emit_bytes :: proc(compiler: ^Compiler, byte1, byte2: u8) {
@@ -220,29 +244,35 @@ compiler_emit_constant :: proc(compiler: ^Compiler, value: Value) {
 }
 
 compiler_emit_jump :: proc(compiler: ^Compiler, opcode: OpCode) -> int {
+    chunk := compiler_current_chunk(compiler)
+
     compiler_emit_byte(compiler, u8(opcode))
     compiler_emit_byte(compiler, 0xff)
     compiler_emit_byte(compiler, 0xff)
 
-    return chunk_size(compiler.chunk) - 2
+    return chunk_size(chunk) - 2
 }
 
 compiler_patch_jump :: proc(compiler: ^Compiler, offset: int) {
+    chunk := compiler_current_chunk(compiler)
+
     // `-2` to adjust for the bytecode for the jump offset itself
-    jump := chunk_size(compiler.chunk) - offset - 2
+    jump := chunk_size(chunk) - offset - 2
     if jump > 65535 { // @u16max
         parser_error(compiler.parser, "Too much code to jump over.")
     }
 
-    compiler.chunk.code[offset + 0] = u8((jump >> 8) & 0xff)
-    compiler.chunk.code[offset + 1] = u8( jump       & 0xff)
+    chunk.code[offset + 0] = u8((jump >> 8) & 0xff)
+    chunk.code[offset + 1] = u8( jump       & 0xff)
 }
 
 compiler_emit_loop :: proc(compiler: ^Compiler, loop_start: int) {
+    chunk := compiler_current_chunk(compiler)
+
     compiler_emit_opcode(compiler, .Loop)
 
     // `+2` to adjust for the bytecode for the jump offset itself
-    offset := chunk_size(compiler.chunk) - loop_start + 2
+    offset := chunk_size(chunk) - loop_start + 2
     if offset > 65535 { // @u16max
         parser_error(compiler.parser, "Loop body too large.")
     }
@@ -446,7 +476,9 @@ compiler_compile_if_statement :: proc(compiler: ^Compiler) {
 }
 
 compiler_compile_while_statement :: proc(compiler: ^Compiler) {
-    loop_start := chunk_size(compiler.chunk)
+    chunk := compiler_current_chunk(compiler)
+
+    loop_start := chunk_size(chunk)
 
     parser_consume(compiler.parser, .LeftParen, "Expect '(' after 'while'.")
     compiler_compile_expression(compiler)
@@ -463,6 +495,8 @@ compiler_compile_while_statement :: proc(compiler: ^Compiler) {
 }
 
 compiler_compile_for_statement :: proc(compiler: ^Compiler) {
+    chunk := compiler_current_chunk(compiler)
+
     compiler_scope_begin(compiler)
     parser_consume(compiler.parser, .LeftParen, "Expect '(' after 'for'.")
 
@@ -475,7 +509,7 @@ compiler_compile_for_statement :: proc(compiler: ^Compiler) {
         compiler_compile_expression_statement(compiler)
     }
 
-    loop_start := chunk_size(compiler.chunk)
+    loop_start := chunk_size(chunk)
     exit_jump  := -1
 
     if !parser_match(compiler.parser, .Semicolon) {
@@ -489,7 +523,7 @@ compiler_compile_for_statement :: proc(compiler: ^Compiler) {
 
     if !parser_match(compiler.parser, .RightParen) {
         body_jump  := compiler_emit_jump(compiler, .Jump)
-        incr_start := chunk_size(compiler.chunk)
+        incr_start := chunk_size(chunk)
 
         compiler_compile_expression(compiler)
         compiler_emit_opcode(compiler, .Pop)

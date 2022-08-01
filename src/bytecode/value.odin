@@ -4,21 +4,6 @@ import "core:fmt"
 
 Nil :: struct{}
 
-// TODO(daniel): instead of type punning, should we use another union?
-ObjType :: enum {
-    String,
-}
-
-Obj :: struct{
-    type: ObjType,
-    next: ^Obj,
-}
-
-ObjString :: struct{
-    using obj : Obj,
-    chars     : string,
-}
-
 Value :: union{
     bool,
     f64,
@@ -58,17 +43,6 @@ value_print :: proc(value: Value) {
     }
 }
 
-value_print_object :: proc(value: ^Obj) {
-    switch value.type {
-    case .String:
-        str := cast(^ObjString) value
-
-        fmt.printf("\"%s\"", str.chars)
-    case:
-        panic("unreachable")
-    }
-}
-
 value_equal :: proc(va, vb: Value) -> bool {
     switch a in va {
     case bool:
@@ -104,45 +78,6 @@ value_equal :: proc(va, vb: Value) -> bool {
     panic("unreachable")
 }
 
-value_equal_obj :: proc(a, b: ^Obj) -> bool {
-    if a.type != b.type {
-        return false
-    }
-
-    switch a.type {
-    case .String:
-        stra := cast(^ObjString) a
-        strb := cast(^ObjString) b
-
-        // TODO(daniel): should we intern strings to speed up comparisons?
-        return stra.chars == strb.chars
-    case:
-        panic("unreachable")
-    }
-}
-
-// TODO(daniel): does this need to be allocated through vm_allocate_string so that it
-// gets freed? Or is it okay to leak these?
-value_new_string :: proc(v: string) -> Value {
-    obj := new(ObjString)
-    obj.type  = .String
-    obj.chars = v
-
-    return cast(^Obj) obj
-}
-
-value_is_string :: proc(v: Value) -> bool {
-    if obj, ok := v.(^Obj); ok {
-        return obj.type == .String
-    }
-
-    return false
-}
-
-value_as_string :: proc(v: Value) -> string {
-    return (cast(^ObjString) v.(^Obj)).chars
-}
-
 value_new_number :: proc(v: f64) -> Value {
     return v
 }
@@ -168,18 +103,11 @@ value_is_falsey :: proc(value: Value) -> bool {
         switch v.type {
         case .String:
             return false
+        case .Function:
+            return false
         case:
             panic("unreachable")
         }
-    case:
-        panic("unreachable")
-    }
-}
-
-object_free :: proc(object: ^Obj) {
-    switch object.type {
-    case .String:
-        free(cast(^ObjString) object)
     case:
         panic("unreachable")
     }
