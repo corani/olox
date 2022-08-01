@@ -3,9 +3,10 @@ package main
 import "core:fmt"
 import "core:os"
 
-DebugTraceExecution :: false
+DebugTraceExecution :: true
 DebugPrintCode      :: true
-StackMax            :: 1024
+FrameMax            :: 64
+StackMax            :: FrameMax * 256
 
 main :: proc() {
     vm_init(&vm)

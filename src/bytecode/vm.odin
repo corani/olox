@@ -4,18 +4,18 @@ import "core:fmt"
 import "core:strings"
 
 VM :: struct {
-    chunk    : ^Chunk,
-    ip       : int,
-    stack    : [StackMax]Value,
-    stack_top: int,
-    objects  : ^Obj,
-    globals  : map[string]Value,
+    frame       : [FrameMax]CallFrame,
+    frame_count : int,
+    stack       : [StackMax]Value,
+    stack_top   : int,
+    objects     : ^Obj,
+    globals     : map[string]Value,
 }
 
 CallFrame :: struct {
     function    : ^ObjFunction,
-    ip          : int,
-    stack_index : int,
+    ip          : int, // TODO(daniel): `return_ip`?
+    stack_index : int, // NOTE(daniel): in VM.stack
 }
 
 InterpretResult :: enum {
@@ -30,9 +30,6 @@ vm: VM
 vm_init :: proc(vm: ^VM) {
     vm_stack_reset(vm)
     vm.objects = nil
-
-    // NOTE(daniel): local dummy value for compiler function "<script>"
-    vm_stack_push(vm, Nil{}) 
 }
 
 vm_free :: proc(vm: ^VM) {
@@ -44,11 +41,15 @@ vm_free :: proc(vm: ^VM) {
         object = next
     }
 
+    // TODO(daniel): free the callframes (should be 1 at this point)
+    // TODO(daniel): free the stack (should be 0 at this point)
+
     vm.objects = nil
 }
 
 vm_stack_reset :: proc(vm: ^VM) {
-    vm.stack_top = 0
+    vm.frame_count = 0
+    vm.stack_top   = 0
 }
 
 vm_stack_push :: proc(vm: ^VM, value: Value) {
@@ -93,7 +94,10 @@ vm_stack_print :: proc(vm: ^VM) {
 }
 
 vm_runtime_error :: proc(vm: ^VM, message: string) {
-    line := vm.chunk.lines[vm.ip-1]
+    frame := vm_current_frame(vm)
+    chunk := frame.function.chunk
+
+    line := chunk.lines[frame.ip-1]
     fmt.eprintf("ERROR: %d: %s\n", line, message)
     vm_stack_reset(vm)
 }
@@ -131,21 +135,27 @@ vm_interpret :: proc(vm: ^VM, source: string) -> InterpretResult {
         return .CompileError
     }
 
-    vm.chunk = function.chunk
-    vm.ip    = 0
+    vm.frame[vm.frame_count] = CallFrame{
+        function    = function,
+        ip          = 0,
+        stack_index = vm.stack_top,
+    }
 
-    result := vm_run(vm)
+    // TODO(daniel): originally this was before adding the frame (where we get the stack_top)
+    vm_stack_push(vm, cast (^Obj) function)
 
-    object_free(function)
+    vm.frame_count += 1
 
-    return result
+    return vm_run(vm)
 }
 
 vm_run :: proc(vm: ^VM) -> InterpretResult {
+    frame := vm_current_frame(vm)
+
     for {
         when DebugTraceExecution {
             vm_stack_print(vm)
-            chunk_disassemble_instruction(vm.chunk, vm.ip)
+            chunk_disassemble_instruction(frame.function.chunk, frame.ip)
         }
 
         switch instruction := vm_read_byte(vm); OpCode(instruction) {
@@ -164,7 +174,7 @@ vm_run :: proc(vm: ^VM) -> InterpretResult {
             name := vm_read_string(vm)
             vm.globals[name] = vm_stack_pop(vm)
         case .GetLocal:
-            slot := vm_read_byte(vm)
+            slot := int(vm_read_byte(vm)) + frame.stack_index
             vm_stack_push(vm, vm.stack[slot])
         case .GetGlobal:
             name := vm_read_string(vm)
@@ -175,7 +185,7 @@ vm_run :: proc(vm: ^VM) -> InterpretResult {
                 return .RuntimeError
             }
         case .SetLocal:
-            slot := vm_read_byte(vm)
+            slot := int(vm_read_byte(vm)) + frame.stack_index
             vm.stack[slot] = vm_stack_peek(vm)
         case .SetGlobal:
             name := vm_read_string(vm)
@@ -239,15 +249,15 @@ vm_run :: proc(vm: ^VM) -> InterpretResult {
             fmt.println()
         case .Jump:
             offset := vm_read_short(vm)
-            vm.ip += int(offset)
+            frame.ip += int(offset)
         case .JumpIfFalse:
             offset := vm_read_short(vm)
             if value_is_falsey(vm_stack_peek(vm, 0)) {
-                vm.ip += int(offset)
+                frame.ip += int(offset)
             }
         case .Loop:
             offset := vm_read_short(vm)
-            vm.ip -= int(offset)
+            frame.ip -= int(offset)
         case .Return:
             return .Ok
         }
@@ -284,23 +294,36 @@ vm_exec_binary :: proc(vm: ^VM, fn: proc(a, b: Value) -> Value) -> bool {
     return true
 }
 
-vm_read_byte :: proc(vm: ^VM) -> u8 {
-    defer vm.ip += 1
+vm_current_frame :: proc(vm: ^VM) -> ^CallFrame {
+    return &vm.frame[vm.frame_count - 1]
+}
 
-    return vm.chunk.code[vm.ip]
+vm_current_chunk :: proc(vm: ^VM) -> ^Chunk {
+    return vm_current_frame(vm).function.chunk
+}
+
+vm_read_byte :: proc(vm: ^VM) -> u8 {
+    frame := vm_current_frame(vm)
+
+    defer frame.ip += 1
+
+    return frame.function.chunk.code[frame.ip]
 }
 
 vm_read_short :: proc(vm: ^VM) -> u16 {
-    defer vm.ip += 2
+    frame := vm_current_frame(vm)
+    chunk := frame.function.chunk
+
+    defer frame.ip += 2
 
     // TODO(daniel): order?
-    return (u16(vm.chunk.code[vm.ip]) << 8) | u16(vm.chunk.code[vm.ip + 1])
+    return (u16(chunk.code[frame.ip]) << 8) | u16(chunk.code[frame.ip + 1])
 }
 
 vm_read_constant :: proc(vm: ^VM) -> Value {
     index := vm_read_byte(vm)
 
-    return vm.chunk.constants.values[index]
+    return vm_current_chunk(vm).constants.values[index]
 }
 
 vm_read_string :: proc(vm: ^VM) -> string {
