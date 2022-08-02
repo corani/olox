@@ -99,6 +99,14 @@ vm_runtime_error :: proc(vm: ^VM, message: string) {
 
     line := chunk.lines[frame.ip-1]
     fmt.eprintf("ERROR: %d: %s\n", line, message)
+
+    for i := vm.frame_count - 1; i >= 0; i -= 1 {
+        frame    := vm.frame[i]
+        function := frame.function
+
+        fmt.eprintf("  [line %d] in %s\n", function.chunk.lines[frame.ip], function.name)
+    }
+
     vm_stack_reset(vm)
 }
 
@@ -135,16 +143,7 @@ vm_interpret :: proc(vm: ^VM, source: string) -> InterpretResult {
         return .CompileError
     }
 
-    vm.frame[vm.frame_count] = CallFrame{
-        function    = function,
-        ip          = 0,
-        stack_index = vm.stack_top,
-    }
-
-    // TODO(daniel): originally this was before adding the frame (where we get the stack_top)
-    vm_stack_push(vm, cast (^Obj) function)
-
-    vm.frame_count += 1
+    vm_call(vm, function, 0)
 
     return vm_run(vm)
 }
@@ -258,10 +257,61 @@ vm_run :: proc(vm: ^VM) -> InterpretResult {
         case .Loop:
             offset := vm_read_short(vm)
             frame.ip -= int(offset)
+        case .Call:
+            arg_count := int(vm_read_byte(vm))
+            if !vm_call_value(vm, vm_stack_peek(vm, arg_count), arg_count) {
+                return .RuntimeError
+            }
+
+            frame = vm_current_frame(vm)
         case .Return:
-            return .Ok
+            result := vm_stack_pop(vm)
+            vm.frame_count -= 1
+            if vm.frame_count == 0 {
+                // TODO(daniel): this is a stack underflow:
+                // vm_stack_pop(vm)
+                return .Ok
+            }
+
+            vm.stack_top = frame.stack_index
+            vm_stack_push(vm, result)
+            frame = vm_current_frame(vm)
         }
     }
+}
+
+vm_call :: proc(vm: ^VM, function: ^ObjFunction, arg_count: int) -> bool {
+    if arg_count != function.arity {
+        vm_runtime_error(vm, fmt.tprintf("Expected %d arguments but got %d.", 
+            function.arity, arg_count))
+        return false
+    }
+
+    if vm.frame_count == FrameMax {
+        vm_runtime_error(vm, "Stack overflow.")
+        return false
+    }
+
+    vm.frame[vm.frame_count] = CallFrame{
+        function    = function,
+        ip          = 0,
+        // function stack includes function value ("slot zero") and arguments!
+        stack_index = vm.stack_top - arg_count - 1,
+    }
+
+    vm.frame_count += 1
+
+    return true
+}
+
+vm_call_value :: proc(vm: ^VM, callee: Value, arg_count: int) -> bool {
+    if value_is_function(callee) {
+        return vm_call(vm, value_as_function(callee), arg_count)
+    }
+
+    vm_runtime_error(vm, "Can only call functions and classes.")
+
+    return false
 }
 
 vm_exec_negate :: proc(vm: ^VM) -> bool {

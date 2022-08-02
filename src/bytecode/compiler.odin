@@ -252,6 +252,7 @@ compiler_emit_opcode :: proc(compiler: ^Compiler, opcode: OpCode) {
 }
 
 compiler_emit_return :: proc(compiler: ^Compiler) {
+    compiler_emit_opcode(compiler, .Nil)
     compiler_emit_opcode(compiler, .Return)
 }
 
@@ -408,6 +409,36 @@ compiler_compile_binary :: proc(compiler: ^Compiler, can_assign: bool) {
     }
 }
 
+compiler_compile_argument_list :: proc(compiler: ^Compiler) -> u8 {
+    arg_count: u8
+
+    if !parser_check(compiler.parser, .RightParen) {
+        for {
+            compiler_compile_expression(compiler)
+
+            if arg_count == 255 {
+                parser_error(compiler.parser, "Can't have more than 255 arguments.")
+            }
+            arg_count += 1
+
+            if !parser_match(compiler.parser, .Comma) {
+                break
+            }
+        }
+    }
+
+    parser_consume(compiler.parser, .RightParen, "Expect ')' after arguments.")
+
+    return arg_count
+}
+
+compiler_compile_call :: proc(compiler: ^Compiler, can_assign: bool) {
+    arg_count := compiler_compile_argument_list(compiler)
+
+    compiler_emit_opcode(compiler, .Call)
+    compiler_emit_byte(compiler, arg_count)
+}
+
 compiler_compile_and :: proc(compiler: ^Compiler, can_assign: bool) {
     end_jump := compiler_emit_jump(compiler, .JumpIfFalse)
 
@@ -470,6 +501,20 @@ compiler_compile_print_statement :: proc(compiler: ^Compiler) {
     compiler_compile_expression(compiler)
     parser_consume(compiler.parser, .Semicolon, "Expect ';' after value.")
     compiler_emit_opcode(compiler, .Print)
+}
+
+compiler_compile_return_statement :: proc(compiler: ^Compiler) {
+    if compiler.type == .Script {
+        parser_error(compiler.parser, "Can't return from top-level code.")
+    }
+
+    if parser_match(compiler.parser, .Semicolon) {
+        compiler_emit_return(compiler)
+    } else {
+        compiler_compile_expression(compiler)
+        parser_consume(compiler.parser, .Semicolon, "Expect ';' after return value.")
+        compiler_emit_opcode(compiler, .Return)
+    }
 }
 
 compiler_compile_if_statement :: proc(compiler: ^Compiler) {
@@ -575,6 +620,8 @@ compiler_compile_statement :: proc(compiler: ^Compiler) {
     switch {
     case parser_match(compiler.parser, .Print):
         compiler_compile_print_statement(compiler)
+    case parser_match(compiler.parser, .Return):
+        compiler_compile_return_statement(compiler)
     case parser_match(compiler.parser, .If):
         compiler_compile_if_statement(compiler)
     case parser_match(compiler.parser, .While):

@@ -33,7 +33,7 @@ ParseRule :: struct {
 ParseFn :: proc(^Compiler, bool)
 
 parse_rules := map[TokenType]ParseRule{
-    .LeftParen      = { compiler_compile_grouping,  nil,                        .None },
+    .LeftParen      = { compiler_compile_grouping,  compiler_compile_call,      .Call },
     .RightParen     = { nil,                        nil,                        .None },
     .LeftBrace      = { nil,                        nil,                        .None },
     .RightBrace     = { nil,                        nil,                        .None },
