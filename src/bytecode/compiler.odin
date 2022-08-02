@@ -1,8 +1,10 @@
 package main
 
+import "core:fmt"
 import "core:strconv"
 
 Compiler :: struct{
+    enclosing   : ^Compiler,
     scanner     : ^Scanner,
     parser      : ^Parser,
     function    : ^ObjFunction,
@@ -23,15 +25,25 @@ FunctionType :: enum {
     Script,
 }
 
-compiler_init :: proc(compiler: ^Compiler, type: FunctionType) {
-    compiler.scanner     = nil
-    compiler.parser      = nil
+compiler_init :: proc(compiler: ^Compiler, type: FunctionType, enclosing: ^Compiler = nil) {
+    compiler.enclosing   = enclosing
     compiler.local_count = 0
     compiler.scope_depth = 0
-    compiler.function    = value_new_function("<script>")
     compiler.type        = type
 
-    compiler_make_local(compiler, Token{text="<script>"})
+    if enclosing == nil {
+        compiler.scanner  = nil
+        compiler.parser   = nil
+        compiler.function = value_new_function("<script>")
+
+        compiler_make_local(compiler, Token{text="<script>"})
+    } else {
+        compiler.scanner  = enclosing.scanner
+        compiler.parser   = enclosing.parser
+        compiler.function = value_new_function(compiler.parser.previous.text)
+
+        compiler_make_local(compiler, compiler.parser.previous)
+    }
 }
 
 compile :: proc(source: string) -> (^ObjFunction, bool) {
@@ -136,7 +148,7 @@ compiler_declare_variable :: proc(compiler: ^Compiler) {
     compiler_make_local(compiler, name)
 }
 
-compiler_parser_variable :: proc(compiler: ^Compiler, message: string) -> u8 {
+compiler_parse_variable :: proc(compiler: ^Compiler, message: string) -> u8 {
     parser_consume(compiler.parser, .Identifier, message);
 
     compiler_declare_variable(compiler)
@@ -150,6 +162,12 @@ compiler_parser_variable :: proc(compiler: ^Compiler, message: string) -> u8 {
 }
 
 compiler_mark_variable_initialized :: proc(compiler: ^Compiler) {
+    // NOTE(daniel): we're at the global scope, so there is no local variable to mark
+    // as `initialized`.
+    if compiler.scope_depth == 0 {
+        return
+    }
+
     compiler.locals[compiler.local_count - 1].depth = compiler.scope_depth
 }
 
@@ -572,10 +590,55 @@ compiler_compile_statement :: proc(compiler: ^Compiler) {
     }
 }
 
+// ----- functions ------------------------------------------------------------
+
+compiler_compile_function :: proc(base_compiler: ^Compiler, type: FunctionType) {
+    compiler: Compiler
+    compiler_init(&compiler, type, base_compiler)
+    compiler_scope_begin(&compiler)
+
+    parser_consume(compiler.parser, .LeftParen, "Expect '(' after function name.")
+    if !parser_check(compiler.parser, .RightParen) {
+        for {
+            compiler.function.arity += 1
+            if compiler.function.arity > 255 {
+                parser_error_at_current(compiler.parser, "Can't have more than 255 parameters.")
+            }
+
+            constant := compiler_parse_variable(&compiler, "Expect parameter name.")
+            compiler_define_variable(&compiler, constant)
+
+            if !parser_match(compiler.parser, .Comma) {
+                break
+            }
+        }
+    }
+
+    parser_consume(compiler.parser, .RightParen, "Expect ')' after parameters.")
+    parser_consume(compiler.parser, .LeftBrace, "Expect '{' before function body.")
+
+    compiler_compile_block_statement(&compiler)
+
+    function := compiler_end(&compiler)
+
+    compiler_scope_end(&compiler)
+
+    compiler_emit_constant(base_compiler, cast(^Obj) function)
+}
+
 // ----- declarations ---------------------------------------------------------
 
+compiler_compile_fun_declaration :: proc(compiler: ^Compiler) {
+    global := compiler_parse_variable(compiler, "Expect function name.")
+
+    compiler_mark_variable_initialized(compiler)
+    compiler_compile_function(compiler, .Function)
+
+    compiler_define_variable(compiler, global)
+}
+
 compiler_compile_var_declaration :: proc(compiler: ^Compiler) {
-    global := compiler_parser_variable(compiler, "Expect variable name.")
+    global := compiler_parse_variable(compiler, "Expect variable name.")
 
     if parser_match(compiler.parser, .Equal) {
         compiler_compile_expression(compiler)
@@ -589,9 +652,12 @@ compiler_compile_var_declaration :: proc(compiler: ^Compiler) {
 }
 
 compiler_compile_declaration :: proc(compiler: ^Compiler) {
-    if parser_match(compiler.parser, .Var) {
+    switch {
+    case parser_match(compiler.parser, .Fun):
+        compiler_compile_fun_declaration(compiler)
+    case parser_match(compiler.parser, .Var):
         compiler_compile_var_declaration(compiler)
-    } else {
+    case:
        compiler_compile_statement(compiler);
     }
 
