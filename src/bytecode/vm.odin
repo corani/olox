@@ -30,6 +30,8 @@ vm: VM
 vm_init :: proc(vm: ^VM) {
     vm_stack_reset(vm)
     vm.objects = nil
+
+    vm_define_native(vm, "clock", native_clock)
 }
 
 vm_free :: proc(vm: ^VM) {
@@ -137,13 +139,17 @@ vm_allocate_function :: proc(vm: ^VM, name: string) -> Value {
 
 }
 
+vm_define_native :: proc(vm: ^VM, name: string, function: NativeFn) {
+    vm.globals[name] = cast(^Obj) value_new_native(function)
+}
+
 vm_interpret :: proc(vm: ^VM, source: string) -> InterpretResult {
     function, ok := compile(source) 
     if !ok {
         return .CompileError
     }
 
-    vm_call(vm, function, 0)
+    vm_call_function(vm, function, 0)
 
     return vm_run(vm)
 }
@@ -280,7 +286,7 @@ vm_run :: proc(vm: ^VM) -> InterpretResult {
     }
 }
 
-vm_call :: proc(vm: ^VM, function: ^ObjFunction, arg_count: int) -> bool {
+vm_call_function :: proc(vm: ^VM, function: ^ObjFunction, arg_count: int) -> bool {
     if arg_count != function.arity {
         vm_runtime_error(vm, fmt.tprintf("Expected %d arguments but got %d.", 
             function.arity, arg_count))
@@ -304,9 +310,20 @@ vm_call :: proc(vm: ^VM, function: ^ObjFunction, arg_count: int) -> bool {
     return true
 }
 
+vm_call_native :: proc(vm: ^VM, native: ^ObjNative, arg_count: int) -> bool {
+    result := native.function(vm.stack[vm.stack_top - arg_count:vm.stack_top])
+    vm.stack_top -= arg_count + 1
+    vm_stack_push(vm, result)
+
+    return true
+}
+
 vm_call_value :: proc(vm: ^VM, callee: Value, arg_count: int) -> bool {
-    if value_is_function(callee) {
-        return vm_call(vm, value_as_function(callee), arg_count)
+    switch {
+    case value_is_function(callee):
+        return vm_call_function(vm, value_as_function(callee), arg_count)
+    case value_is_native(callee):
+        return vm_call_native(vm, value_as_native(callee), arg_count)
     }
 
     vm_runtime_error(vm, "Can only call functions and classes.")

@@ -28,22 +28,29 @@ FunctionType :: enum {
 compiler_init :: proc(compiler: ^Compiler, type: FunctionType, enclosing: ^Compiler = nil) {
     compiler.enclosing   = enclosing
     compiler.local_count = 0
-    compiler.scope_depth = 0
     compiler.type        = type
 
     if enclosing == nil {
-        compiler.scanner  = nil
-        compiler.parser   = nil
-        compiler.function = value_new_function("<script>")
-
-        compiler_make_local(compiler, Token{text="<script>"})
+        compiler.scope_depth = 0
+        compiler.scanner     = nil
+        compiler.parser      = nil
     } else {
-        compiler.scanner  = enclosing.scanner
-        compiler.parser   = enclosing.parser
-        compiler.function = value_new_function(compiler.parser.previous.text)
-
-        compiler_make_local(compiler, compiler.parser.previous)
+        compiler.scope_depth = enclosing.scope_depth
+        compiler.scanner     = enclosing.scanner
+        compiler.parser      = enclosing.parser
     }
+
+    name := Token{text="<script>"}
+    if type != .Script {
+        name = enclosing.parser.previous
+    }
+
+    compiler.function    = value_new_function(name.text)
+
+    local := &compiler.locals[compiler.local_count]
+    compiler.local_count += 1
+
+    local.depth = 0
 }
 
 compile :: proc(source: string) -> (^ObjFunction, bool) {
@@ -320,11 +327,13 @@ compiler_compile_string :: proc(compiler: ^Compiler, can_assign: bool) {
 }
 
 compiler_compile_named_variable :: proc(compiler: ^Compiler, name: Token, can_assign: bool) {
-    arg    := compiler_compile_resolve_local(compiler, name)
-    get_op := OpCode.GetLocal
-    set_op := OpCode.SetLocal
+    get_op, set_op: OpCode
 
-    if arg < 0 {
+    arg := compiler_compile_resolve_local(compiler, name)
+    if arg != -1 {
+        get_op = .GetLocal
+        set_op = .SetLocal
+    } else {
         arg    = int(compiler_compile_identifier_constant(compiler, name))
         get_op = .GetGlobal
         set_op = .SetGlobal

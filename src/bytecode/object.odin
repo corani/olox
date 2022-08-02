@@ -6,6 +6,7 @@ import "core:fmt"
 ObjType :: enum {
     String,
     Function,
+    Native,
 }
 
 Obj :: struct{
@@ -22,8 +23,12 @@ ObjFunction :: struct{
     using obj : Obj,
     arity     : int,
     chunk     : ^Chunk,
-    // NOTE(daniel): originally ^ObjString, but I believe we don't need to free strings in Odin.
     name      : string 
+}
+
+ObjNative :: struct{
+    using obj : Obj,
+    function  : NativeFn,
 }
 
 value_equal_obj :: proc(a, b: ^Obj) -> bool {
@@ -44,6 +49,11 @@ value_equal_obj :: proc(a, b: ^Obj) -> bool {
 
         // TODO(daniel): function equality
         return false
+    case .Native:
+        funa := cast(^ObjNative) a
+        funb := cast(^ObjNative) b
+
+        return funa.function == funb.function
     case:
         panic("unreachable")
     }
@@ -59,6 +69,11 @@ value_print_object :: proc(value: ^Obj) {
         fun := value_as_function(value)
 
         fmt.printf("<fn %s>", fun.name)
+    case .Native:
+        fun := value_as_native(value)
+
+        // TODO(daniel): does this look reasonable? should we store a name for the native function?
+        fmt.printf("<native fn %v>", fun.function)
     case:
         panic("unreachable")
     }
@@ -86,7 +101,7 @@ value_as_string :: proc(v: Value) -> ^ObjString {
     return cast(^ObjString) v.(^Obj)
 }
 
-// TODO(daniel): this needs to be freed!
+// TODO(daniel): does this need to be freed?
 value_new_function :: proc(name: string) -> ^ObjFunction {
     obj := new(ObjFunction)
     obj.type  = .Function
@@ -110,6 +125,27 @@ value_as_function :: proc(v: Value) -> ^ObjFunction {
     return cast(^ObjFunction) v.(^Obj)
 }
 
+// TODO(daniel): does this need to be freed?
+value_new_native :: proc(function: NativeFn) -> ^ObjNative {
+    obj := new(ObjNative)
+    obj.type     = .Native
+    obj.function = function
+
+    return obj
+}
+
+value_is_native :: proc(v: Value) -> bool {
+    if obj, ok := v.(^Obj); ok {
+        return obj.type == .Native
+    }
+
+    return false
+}
+
+value_as_native :: proc(v: Value) -> ^ObjNative {
+    return cast(^ObjNative) v.(^Obj)
+}
+
 object_free :: proc(object: ^Obj) {
     switch object.type {
     case .String:
@@ -120,6 +156,10 @@ object_free :: proc(object: ^Obj) {
         v := cast(^ObjFunction) object
 
         chunk_free(v.chunk)
+        free(v)
+    case .Native:
+        v := cast(^ObjNative) object
+
         free(v)
     case:
         panic("unreachable")
