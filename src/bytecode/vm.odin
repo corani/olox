@@ -13,7 +13,7 @@ VM :: struct {
 }
 
 CallFrame :: struct {
-    function    : ^ObjFunction,
+    closure     : ^ObjClosure,
     ip          : int, // TODO(daniel): `return_ip`?
     stack_index : int, // NOTE(daniel): in VM.stack
 }
@@ -97,16 +97,17 @@ vm_stack_print :: proc(vm: ^VM) {
 
 vm_runtime_error :: proc(vm: ^VM, message: string) {
     frame := vm_current_frame(vm)
-    chunk := frame.function.chunk
+    chunk := frame.closure.function.chunk
 
     line := chunk.lines[frame.ip-1]
     fmt.eprintf("ERROR: %d: %s\n", line, message)
 
     for i := vm.frame_count - 1; i >= 0; i -= 1 {
         frame    := vm.frame[i]
-        function := frame.function
+        closure := frame.closure
 
-        fmt.eprintf("  [line %d] in %s\n", function.chunk.lines[frame.ip], function.name)
+        fmt.eprintf("  [line %d] in %s\n", 
+            closure.function.chunk.lines[frame.ip], closure.function.name)
     }
 
     vm_stack_reset(vm)
@@ -149,7 +150,10 @@ vm_interpret :: proc(vm: ^VM, source: string) -> InterpretResult {
         return .CompileError
     }
 
-    vm_call_function(vm, function, 0)
+    closure := value_new_closure(function)
+    vm_stack_push(vm, cast(^Obj) closure)
+
+    vm_call_closure(vm, closure, 0)
 
     return vm_run(vm)
 }
@@ -160,7 +164,7 @@ vm_run :: proc(vm: ^VM) -> InterpretResult {
     for {
         when DebugTraceExecution {
             vm_stack_print(vm)
-            chunk_disassemble_instruction(frame.function.chunk, frame.ip)
+            chunk_disassemble_instruction(frame.closure.function.chunk, frame.ip)
         }
 
         switch instruction := vm_read_byte(vm); OpCode(instruction) {
@@ -270,6 +274,10 @@ vm_run :: proc(vm: ^VM) -> InterpretResult {
             }
 
             frame = vm_current_frame(vm)
+        case .Closure:
+            function := value_as_function(vm_read_constant(vm))
+            closure  := value_new_closure(function)
+            vm_stack_push(vm, cast(^Obj) closure)
         case .Return:
             result := vm_stack_pop(vm)
             vm.frame_count -= 1
@@ -286,10 +294,10 @@ vm_run :: proc(vm: ^VM) -> InterpretResult {
     }
 }
 
-vm_call_function :: proc(vm: ^VM, function: ^ObjFunction, arg_count: int) -> bool {
-    if arg_count != function.arity {
+vm_call_closure :: proc(vm: ^VM, closure: ^ObjClosure, arg_count: int) -> bool {
+    if arg_count != closure.function.arity {
         vm_runtime_error(vm, fmt.tprintf("Expected %d arguments but got %d.", 
-            function.arity, arg_count))
+            closure.function.arity, arg_count))
         return false
     }
 
@@ -299,7 +307,7 @@ vm_call_function :: proc(vm: ^VM, function: ^ObjFunction, arg_count: int) -> boo
     }
 
     vm.frame[vm.frame_count] = CallFrame{
-        function    = function,
+        closure     = closure,
         ip          = 0,
         // function stack includes function value ("slot zero") and arguments!
         stack_index = vm.stack_top - arg_count - 1,
@@ -321,7 +329,9 @@ vm_call_native :: proc(vm: ^VM, native: ^ObjNative, arg_count: int) -> bool {
 vm_call_value :: proc(vm: ^VM, callee: Value, arg_count: int) -> bool {
     switch {
     case value_is_function(callee):
-        return vm_call_function(vm, value_as_function(callee), arg_count)
+        panic("unreachable")
+    case value_is_closure(callee):
+        return vm_call_closure(vm, value_as_closure(callee), arg_count)
     case value_is_native(callee):
         return vm_call_native(vm, value_as_native(callee), arg_count)
     }
@@ -366,7 +376,7 @@ vm_current_frame :: proc(vm: ^VM) -> ^CallFrame {
 }
 
 vm_current_chunk :: proc(vm: ^VM) -> ^Chunk {
-    return vm_current_frame(vm).function.chunk
+    return vm_current_frame(vm).closure.function.chunk
 }
 
 vm_read_byte :: proc(vm: ^VM) -> u8 {
@@ -374,12 +384,12 @@ vm_read_byte :: proc(vm: ^VM) -> u8 {
 
     defer frame.ip += 1
 
-    return frame.function.chunk.code[frame.ip]
+    return frame.closure.function.chunk.code[frame.ip]
 }
 
 vm_read_short :: proc(vm: ^VM) -> u16 {
     frame := vm_current_frame(vm)
-    chunk := frame.function.chunk
+    chunk := frame.closure.function.chunk
 
     defer frame.ip += 2
 

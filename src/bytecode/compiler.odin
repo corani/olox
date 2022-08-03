@@ -679,7 +679,9 @@ compiler_compile_function :: proc(base_compiler: ^Compiler, type: FunctionType) 
 
     compiler_scope_end(&compiler)
 
-    compiler_emit_constant(base_compiler, cast(^Obj) function)
+    compiler_emit_opcode(base_compiler, .Closure)
+    compiler_emit_byte(base_compiler, 
+        compiler_make_constant(base_compiler, cast(^Obj) function))
 }
 
 // ----- declarations ---------------------------------------------------------

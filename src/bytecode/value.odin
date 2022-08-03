@@ -105,6 +105,8 @@ value_is_falsey :: proc(value: Value) -> bool {
             return false
         case .Function:
             return false
+        case .Closure:
+            return false
         case .Native:
             return false
         case:

@@ -71,10 +71,22 @@ chunk_disassemble_instruction :: proc(chunk: ^Chunk, offset: int) -> int {
         return jump_instruction("OP_LOOP", -1, chunk, offset)
     case .Call:
         return byte_instruction("OP_CALL", chunk, offset)
+    case .Closure:
+        return closure_instruction("OP_CLOSURE", chunk, offset)
     case:
         fmt.printf("Unknown opcode %d\n", opcode)
         return offset + 1
     }
+}
+
+closure_instruction :: proc(name: string, chunk: ^Chunk, offset: int) -> int {
+    constant := chunk.code[offset+1]
+
+    fmt.printf("%-16s %4d ", "OP_CLOSURE", constant)
+    value_print(chunk.constants.values[constant])
+    fmt.printf("\n")
+
+    return offset + 2
 }
 
 simple_instruction :: proc(name: string, offset: int) -> int {

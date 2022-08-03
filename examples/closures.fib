@@ -1,0 +1,43 @@
+// ------------------------------------
+var x = "global";
+
+fun outer() {
+    var x = "outer";
+
+    fun inner() {
+        print x;
+    }
+
+    inner();
+}
+
+outer();
+
+// ---- capture local variable --------------------------------
+fun makeClosure() {
+    var local = "local";
+
+    fun closure() {
+        print local;
+    }
+
+    return closure;
+}
+
+var closure = makeClosure();
+closure();
+
+// ---- capture function argument--------------------------------
+fun makeFoodPrinter(value) {
+    fun closure() {
+        print value;
+    }
+
+    return closure;
+}
+
+var doughnut = makeFoodPrinter("doughnut");
+var bagel = makeFoodPrinter("bagel");
+
+doughnut();
+bagel();

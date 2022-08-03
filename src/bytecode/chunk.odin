@@ -25,6 +25,7 @@ OpCode :: enum u8 {
     JumpIfFalse,
     Loop,
     Call,
+    Closure,
     Return,
 }
 
